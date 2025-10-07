@@ -1,0 +1,33 @@
+services:
+  localizarr:
+    # Build from development Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    ports:
+      - '5005:5005' # Main application port
+      - '5006:5006' # Proxy port for Prowlarr integration
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - TZ=UTC
+    volumes:
+      # Mount source code for hot reload during development
+      - .:/app
+      # Preserve container's node_modules
+      - /app/node_modules
+      # Persist database and logs
+      - ./data:/app/data
+    # Development server with hot reload
+    command: npm run dev
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5005']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Ollama service removed - run Ollama locally instead
+  # To run Ollama locally: ollama serve

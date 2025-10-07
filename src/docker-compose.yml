@@ -1,0 +1,58 @@
+version: '3.8'
+services:
+  localizarr:
+    # Build from local directory (recommended for development)
+    build: .
+    # Alternative: build from GitHub repository
+    # build: https://github.com/vinicioslc/localizarr.git#main
+    image: vinicioslc/localizarr:latest
+    restart: unless-stopped
+    ports:
+      - '5005:5005' # Main application port
+      - '5006:5006' # Proxy port for Prowlarr integration
+    environment:
+      - TZ=UTC
+      - NODE_ENV=production
+      - PORT=5005
+      - PROXY_PORT=5006
+      - HOST=0.0.0.0
+      - LOG_LEVEL=info
+      - APP_KEY=your-secret-app-key-here
+      - API_KEY=your-optional-api-key
+      - APP_NAME=Localizarr
+      - DB_CONNECTION=sqlite
+      - SESSION_DRIVER=cookie
+
+      # Ollama AI Processing Configuration
+      - ENABLE_OLLAMA_PROCESSING=true
+      - OLLAMA_HOST=host.docker.internal
+      - OLLAMA_PORT=11434
+
+    volumes:
+      # Persist database and logs
+      - ./data:/app/data
+      # Optional: Mount custom config
+      # - ./config:/app/config:ro
+
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5005']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+# Optional: Add Ollama service for AI processing
+# depends_on:
+#   - ollama
+
+# ollama:
+#   image: ollama/ollama:latest
+#   restart: unless-stopped
+#   ports:
+#     - "11434:11434"
+#   volumes:
+#     - ./ollama:/root/.ollama
+#   environment:
+#     - OLLAMA_HOST=0.0.0.0
+# Uncomment to pull models on startup gemma3:4b "cheap but works"
+# command: ["ollama", "serve", "&", "ollama", "pull", "gemma3:4b"]
+

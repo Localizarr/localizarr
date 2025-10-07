@@ -1,0 +1,30 @@
+# Development Dockerfile for Localizarr
+FROM node:22-slim
+
+# Install system dependencies for better-sqlite3
+RUN apt-get update && apt-get install -y \
+  curl \
+  python3 \
+  build-essential \
+  && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev dependencies)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /app/tmp /app/data
+
+# Expose ports
+EXPOSE 5005 5006
+
+# Default command for development
+CMD ["npm", "run", "dev"]

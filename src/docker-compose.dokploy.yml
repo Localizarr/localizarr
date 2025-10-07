@@ -1,0 +1,46 @@
+services:
+  localizarr:
+    # Build from local directory (recommended for development)
+    build: .
+    # Alternative: build from GitHub repository
+    # build: https://github.com/vinicioslc/localizarr.git#main
+    image: vinicioslc/localizarr:latest
+    hostname: localizarr
+    container_name: localizarr
+    restart: unless-stopped
+    ports:
+      - '5005:5005' # Main application port
+      - '5006:5006' # Proxy port for Prowlarr integration
+    environment:
+      - TZ=America/Sao_Paulo
+      - NODE_ENV=production
+      - PORT=5005
+      - PROXY_PORT=5006
+      - HOST=0.0.0.0
+      - LOG_LEVEL=info
+      - APP_KEY=${APP_KEY}
+      - API_KEY=${API_KEY}
+      - APP_NAME=Localizarr
+      - DB_CONNECTION=sqlite
+      - SESSION_DRIVER=cookie
+      # Ollama AI Processing Configuration
+      - ENABLE_OLLAMA_PROCESSING=true
+      - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
+      - OLLAMA_PORT=${OLLAMA_PORT:-11434}
+    volumes:
+      # Persist database and logs
+      - ./data:/app/data
+      # Optional: Mount custom config
+      # - ./config:/app/config:ro
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:5005']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
