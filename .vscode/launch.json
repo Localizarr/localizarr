@@ -1,0 +1,60 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to npm run dev",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "sourceMaps": true,
+      "smartStep": true,
+      "showAsyncStacks": true,
+      "outFiles": [
+        "${workspaceFolder}/src/build/**/*.js"
+      ]
+    },
+    {
+      "name": "Debug npm run dev",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/node_modules/.bin/ace",
+      "args": [
+        "serve",
+        "--watch"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "cwd": "${workspaceFolder}/src",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "sourceMaps": true,
+      "smartStep": true,
+      "showAsyncStacks": true,
+      "outFiles": [
+        "${workspaceFolder}/src/build/**/*.js"
+      ]
+    },
+    {
+      "name": "Debug Current TS File",
+      "type": "node",
+      "request": "launch",
+      "program": "${file}",
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "cwd": "${workspaceFolder}/src",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "sourceMaps": true,
+      "smartStep": true,
+      "showAsyncStacks": true
+    }
+  ]
+}
