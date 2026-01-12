@@ -158,3 +158,8 @@ yarn-error.log
 
 # Platform specific
 .DS_Store
+
+# Queue files
+!src/queues/*.gitkeep
+src/queues/*.queued
+src/queues/*.finished

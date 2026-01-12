@@ -27,7 +27,14 @@ export default await Env.create(new URL('../', import.meta.url), {
   | Ollama AI Processing Configuration
   |----------------------------------------------------------
   */
-  ENABLE_OLLAMA_PROCESSING: Env.schema.boolean.optional(),
+  ENABLE_OLLAMA: Env.schema.boolean.optional(),
+  USE_QUEUED_LLM: Env.schema.boolean.optional(),
+  ENABLE_QUEUE_PROCESSING: Env.schema.boolean.optional(),
+  // minimum interval between LLM calls for the same URL in seconds
+  LLM_CACHE_EXPIRY_SECONDS: Env.schema.number.optional(),
+
+  OLLAMA_URL: Env.schema.string.optional(),
+  OLLAMA_MODEL: Env.schema.string.optional(),
 
   /*
   |----------------------------------------------------------

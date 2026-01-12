@@ -51,14 +51,30 @@ export const application = {
  * Title processing configuration
  */
 export const titleProcessing = {
-  enableOllamaProcessing: env.get('ENABLE_OLLAMA_PROCESSING', true),
+  enableOllamaProcessing: env.get('ENABLE_OLLAMA', true),
+  useQueuedLlm: env.get('USE_QUEUED_LLM', false), // If true, use queues for LLM processing
+  enableQueueProcessing: env.get('ENABLE_QUEUE_PROCESSING', true), // If false, queues are not processed
+  llmCacheExpiry: env.get('LLM_CACHE_EXPIRY_SECONDS', 3600), // Default 1 hour
 }
 
 /**
  * Ollama AI configuration
  */
+const ollamaUrl = env.get('OLLAMA_URL', 'http://localhost:11434')
+try {
+  new URL(ollamaUrl)
+} catch (error) {
+  console.error(`[Config] Invalid OLLAMA_URL: "${ollamaUrl}". Using default "http://localhost:11434". Error: ${error.message}`)
+}
+
 export const ollama = {
-  host: env.get('OLLAMA_HOST', 'host.docker.internal'),
-  port: env.get('OLLAMA_PORT', '11434'),
-  model: env.get('OLLAMA_MODEL', 'gemma3:4b'),
+  url: (() => {
+    try {
+      new URL(ollamaUrl)
+      return ollamaUrl
+    } catch {
+      return 'http://localhost:11434'
+    }
+  })(),
+  model: env.get('OLLAMA_MODEL', ''),
 }

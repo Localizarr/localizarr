@@ -47,6 +47,23 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
         console.error('Failed to run database migrations:', error)
         throw error
       }
+
+      // Check Ollama connectivity if enabled
+      const { titleProcessing } = await import('#config/app')
+      if (titleProcessing.enableOllamaProcessing) {
+        const { OllamaService } = await import('#services/ollama_service')
+        try {
+          const models = await OllamaService.checkAvailableModels()
+          if (!models) {
+            console.error('[Startup] Ollama models could not be listed; disabling LLM processing')
+              ; (titleProcessing as any).enableOllamaProcessing = false
+          }
+        } catch (err) {
+          console.error('[Startup] Error during Ollama check:', err)
+            ; (titleProcessing as any).enableOllamaProcessing = false
+        }
+      }
+      // Queue processing is now initialized lazily in the controller
     })
     app.listen('SIGTERM', () => app.terminate())
     app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())

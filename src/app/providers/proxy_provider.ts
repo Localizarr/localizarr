@@ -2,7 +2,7 @@ import { ApplicationService } from '@adonisjs/core/types'
 import { ProxyService } from '#services/proxy_service'
 
 export default class ProxyProvider {
-  constructor(protected app: ApplicationService) {}
+  constructor(protected app: ApplicationService) { }
 
   async register() {
     this.app.container.singleton(ProxyService, async () => {

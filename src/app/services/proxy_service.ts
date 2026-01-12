@@ -84,7 +84,7 @@ export class ProxyService {
         this.logger.warn('Falha na autenticação do proxy')
         socket.write(
           'HTTP/1.1 407 Proxy Authentication Required\r\n' +
-            'Proxy-Authenticate: Basic realm="Proxy"\r\n\r\n'
+          'Proxy-Authenticate: Basic realm="Proxy"\r\n\r\n'
         )
         socket.end()
         return
@@ -182,7 +182,8 @@ export class ProxyService {
       // Build the correct URL for the AdonisJS route /_/:domain/*
       const modifiedUrl = `http://localhost:${localPort}/_/${host}${uri.pathname}${uri.search}`
 
-      this.logger.info(`URL modificada para: ${modifiedUrl}`)
+      this.logger.info(`URL modificada para:`)
+      this.logger.info(`${modifiedUrl}`)
       this.logger.info(`Rota esperada: /_/${host}${uri.pathname}${uri.search}`)
 
       const options: http.RequestOptions = {
@@ -231,8 +232,9 @@ export class ProxyService {
               .toString()
             const truncated = responseData.length > 1000 ? ' [TRUNCATED]' : ''
             this.logger.info(
-              `Conteúdo da resposta HTTP (${responseData.length} bytes, tipo: ${contentType}): ${contentPreview}${truncated}`
+              `Conteúdo da resposta HTTP (${responseData.length} bytes, tipo: ${contentType}):`
             )
+            this.logger.info(`${contentPreview}${truncated}`)
           } else if (responseData.length > 0) {
             this.logger.debug(
               `Resposta binária recebida (${responseData.length} bytes, tipo: ${contentType})`

@@ -68,12 +68,13 @@ export class TitlesService {
           const title = localizedName.title
 
           // Add mapping from localized name to original title (reverse replacement)
-          this.titleReplacements.set(localizedName.localizedName, title.originalTitle)
+          // Append language code in brackets to help user identify the replacement
+          this.titleReplacements.set(localizedName.localizedName, `${title.originalTitle}.${localizedName.langId}`)
         }
 
         console.log(`[TitlesService] Loaded ${this.titleReplacements.size} title replacements`)
       } catch (error) {
-        console.error(`[TitlesService] Error loading replacements:`, error)
+        console.log(`[TitlesService] Database not available or not initialized (this is normal in test environments):`, error.message)
         this.titleReplacements.clear()
       }
     }
@@ -86,7 +87,8 @@ export class TitlesService {
   static async processSearchResultsWithLLM(
     responseData: any,
     targetLangId: string = 'pt-BR',
-    imdbId?: string
+    imdbId?: string,
+    executionLog?: any
   ): Promise<any> {
     if (!responseData) return responseData
 
@@ -107,7 +109,7 @@ export class TitlesService {
       console.log(`[TitlesService] Titles before LLM processing:`, titles)
 
       // Send to LLM for analysis with IMDb ID if available
-      const analysisResult = await OllamaService.analyzeSearchResults(titles, imdbId)
+      const analysisResult = await OllamaService.analyzeSearchResults(titles, imdbId, executionLog)
 
       if (!analysisResult) {
         console.log(`[TitlesService] LLM analysis returned no results`)
@@ -164,7 +166,7 @@ export class TitlesService {
   /**
    * Extract titles from different response formats
    */
-  private static extractTitlesFromResponse(responseData: any): string[] {
+  static extractTitlesFromResponse(responseData: any): string[] {
     const titles: string[] = []
 
     if (responseData.results && Array.isArray(responseData.results)) {
@@ -217,11 +219,13 @@ export class TitlesService {
           })
           console.log(`[TitlesService] Created new title: ${originalTitle}`)
         } else {
-          // Update original title if different
-          if (title.originalTitle !== originalTitle) {
+          // Update original title only if it's empty or null
+          if (!title.originalTitle || title.originalTitle.trim() === '') {
             title.originalTitle = originalTitle
             await title.save()
-            console.log(`[TitlesService] Updated title: ${originalTitle}`)
+            console.log(`[TitlesService] Updated empty title: ${originalTitle}`)
+          } else {
+            console.log(`[TitlesService] Title already has value, skipping update: ${originalTitle}`)
           }
         }
 

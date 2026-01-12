@@ -24,7 +24,7 @@ services:
       - DB_CONNECTION=sqlite
       - SESSION_DRIVER=cookie
       # Ollama AI Processing Configuration
-      - ENABLE_OLLAMA_PROCESSING=true
+      - ENABLE_OLLAMA=true
       - OLLAMA_HOST=${OLLAMA_HOST:-host.docker.internal}
       - OLLAMA_PORT=${OLLAMA_PORT:-11434}
     volumes:

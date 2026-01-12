@@ -2,11 +2,15 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Attach to npm run dev",
+      "name": "Debug npm run dev",
       "type": "node",
-      "request": "attach",
-      "port": 9229,
-      "restart": true,
+      "request": "launch",
+      "program": "${workspaceFolder}/src/ace.js",
+      "args": [
+        "serve",
+        "--hmr"
+      ],
+      "cwd": "${workspaceFolder}/src",
       "skipFiles": [
         "<node_internals>/**"
       ],
@@ -15,7 +19,10 @@
       "showAsyncStacks": true,
       "outFiles": [
         "${workspaceFolder}/src/build/**/*.js"
-      ]
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      }
     },
     {
       "name": "Debug npm run dev",

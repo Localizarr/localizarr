@@ -1,17 +1,39 @@
-import axios from 'axios'
 import serverConfig from '#config/servers'
 import { TitlesService } from '../repositories/titles_service.js'
 import { titleProcessing } from '#config/app'
+import { QueueService } from '#services/queue_service'
+import { ProxyRequestService } from '#services/proxy_request_service'
+import { QUEUES } from '../../queues.js'
+import ExecutionLog from '#models/execution_log'
+import LlmCache from '#models/llm_cache'
+import { DateTime } from 'luxon'
 import type { HttpContext } from '@adonisjs/core/http'
+import { inject } from '@adonisjs/core'
 
+@inject()
 export default class ProxyController {
+  constructor(private queueService: QueueService, private proxyRequestService: ProxyRequestService) { }
   /**
    * Handle proxy requests to external services
    */
   public async handleProxyRequest({ params, request, response }: HttpContext) {
+    const startTime = Date.now()
     const domain = params.domain
     const path = request.param('*').join('/')
     const query = request.qs()
+
+    // 1. Create Execution Log
+    let executionLog = new ExecutionLog()
+    try {
+      executionLog.routeUrl = request.url()
+      executionLog.indexerName = domain
+      executionLog.searchQuery = query
+      executionLog.status = 'processing'
+      await executionLog.save()
+      console.log(`[PROXY_CONTROLLER] Created execution log: ${executionLog.id}`)
+    } catch (e) {
+      console.error('Failed to create execution log', e)
+    }
 
     console.log(`[ROUTE] Proxy route called - Domain: ${domain}, Path: ${path}, Query:`, query)
 
@@ -29,24 +51,32 @@ export default class ProxyController {
 
     console.log(`[ROUTE] Final URL to request: ${url}`)
     console.log('Proxying to:', url)
-    console.log('Method:', request.method())
-    console.log('Query params:', query)
 
     try {
       // Prepare headers - remove host header, let axios set it
       const { host, ...headersToForward } = request.headers()
 
-      const proxyResponse = await axios({
-        method: request.method(),
-        url: url,
-        headers: {
+      const proxyResponse = await this.proxyRequestService.proxyRequest(
+        url,
+        request.method(),
+        request.body(),
+        {
           ...headersToForward,
           host: domain, // Override host header for the target domain
-        },
-        data: request.body(),
-        validateStatus: () => true, // Allow any status code
-        timeout: 30000, // 30 second timeout
-      })
+        }
+      )
+
+      console.log(`[PROXY_CONTROLLER] Response source: ${proxyResponse.fromCache ? 'DATABASE_CACHE' : 'EXTERNAL_SERVER'}`)
+
+      // 2. Update Log with Original Response
+      if (executionLog) {
+        try {
+          const bodyStr = typeof proxyResponse.data === 'object' ? JSON.stringify(proxyResponse.data) : String(proxyResponse.data)
+          executionLog.originalResponseBody = bodyStr.length > 50000 ? bodyStr.substring(0, 50000) + '...[TRUNCATED]' : bodyStr
+          await executionLog.save()
+          console.log(`[PROXY_CONTROLLER] Updated log ${executionLog.id} with original response`)
+        } catch (e) { console.error('Error logging original response', e) }
+      }
 
       console.log('Proxy response status:', proxyResponse.status)
 
@@ -54,7 +84,6 @@ export default class ProxyController {
 
       // Forward all headers from the proxied response
       for (const [key, value] of Object.entries(proxyResponse.headers)) {
-        // Skip hop-by-hop headers that shouldn't be forwarded
         if (
           ![
             'connection',
@@ -67,7 +96,7 @@ export default class ProxyController {
             'upgrade',
           ].includes(key.toLowerCase())
         ) {
-          response.header(key, value)
+          response.header(key, value as any)
         }
       }
 
@@ -78,13 +107,69 @@ export default class ProxyController {
           // First, apply LLM processing if enabled
           const enableOllamaProcessing = titleProcessing.enableOllamaProcessing
           if (enableOllamaProcessing) {
-            console.log('[ROUTE] Applying LLM analysis using TitlesService')
-            responseData = await TitlesService.processSearchResultsWithLLM(
-              responseData,
-              'pt-BR',
-              imdbId
-            )
-            console.log('[ROUTE] LLM analysis applied successfully')
+            // Check LLM Cache
+            const llmCacheExpiry = titleProcessing.llmCacheExpiry
+            const now = DateTime.now()
+
+            // Prioritize finding cache by IMDb ID if available, otherwise by URL
+            let cacheEntry: LlmCache | null = null
+            if (imdbId) {
+              cacheEntry = await LlmCache.query().where('imdb_id', imdbId).first()
+            }
+            if (!cacheEntry) {
+              cacheEntry = await LlmCache.query().where('url', url).first()
+            }
+
+            let shouldProcessLLM = true
+            if (cacheEntry) {
+              const secondsSinceLastProcess = now.diff(cacheEntry.lastProcessedAt, 'seconds').seconds
+              if (secondsSinceLastProcess < llmCacheExpiry) {
+                const source = cacheEntry.imdbId ? `IMDb: ${cacheEntry.imdbId}` : `URL`
+                console.log(`[PROXY_CONTROLLER] skipping LLM processing (found cache via ${source}, TTL: ${llmCacheExpiry}s, elapsed: ${Math.round(secondsSinceLastProcess)}s)`)
+                shouldProcessLLM = false
+              }
+            }
+
+            if (shouldProcessLLM) {
+              if (titleProcessing.useQueuedLlm) {
+                // Asynchronous processing via queues
+                console.log('[PROXY_CONTROLLER] USE_QUEUED_LLM=true, publishing to queue')
+                await this.queueService.ensureStarted()
+                await this.queueService.publish(QUEUES.PROCESS_TITLES_ASYNC, {
+                  responseData,
+                  imdbId,
+                  executionLogId: executionLog?.id
+                })
+                console.log('[ROUTE] Published to async queue')
+
+                if (executionLog) {
+                  executionLog.status = 'queued_async'
+                  await executionLog.save()
+                }
+
+              } else {
+                // Synchronous processing
+                console.log('[PROXY_CONTROLLER] USE_QUEUED_LLM=false, processing synchronously')
+
+                // Pass executionLog to TitlesService
+                responseData = await TitlesService.processSearchResultsWithLLM(
+                  responseData,
+                  'pt-BR',
+                  imdbId,
+                  executionLog // Pass the log entity
+                )
+                console.log('[ROUTE] LLM processing completed synchronously')
+              }
+
+              // Update LLM Cache (both URL and IMDb ID for maximum coverage)
+              if (cacheEntry) {
+                cacheEntry.lastProcessedAt = now
+                if (imdbId) cacheEntry.imdbId = imdbId
+                await cacheEntry.save()
+              } else {
+                await LlmCache.create({ url, imdbId, lastProcessedAt: now })
+              }
+            }
           } else {
             console.log('[ROUTE] LLM processing disabled via application configuration')
           }
@@ -99,10 +184,29 @@ export default class ProxyController {
         }
       }
 
+      // 3. Finalize Log (only if not queued - if queued, consumer finalizes it)
+      if (executionLog && !titleProcessing.useQueuedLlm) {
+        try {
+          const bodyStr = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData)
+          executionLog.processedResponseBody = bodyStr.length > 50000 ? bodyStr.substring(0, 50000) + '...[TRUNCATED]' : bodyStr
+          executionLog.status = 'completed'
+          executionLog.durationMs = Date.now() - startTime
+          await executionLog.save()
+        } catch (e) { console.error('Error finalizing log', e) }
+      }
+
       response.send(responseData)
     } catch (error) {
       console.error('Proxy error:', error.message)
-      console.error('Error details:', error)
+
+      // Update log with error
+      if (executionLog) {
+        try {
+          executionLog.status = 'failed'
+          executionLog.durationMs = Date.now() - startTime
+          await executionLog.save()
+        } catch (e) { }
+      }
 
       // Return more specific error information
       if (error.code === 'ECONNREFUSED') {
@@ -110,7 +214,6 @@ export default class ProxyController {
       } else if (error.code === 'ENOTFOUND') {
         response.status(502).send('Bad Gateway: Host not found')
       } else if (error.response) {
-        // If axios got a response, forward it
         response.status(error.response.status).send(error.response.data)
       } else {
         response.status(500).send('Proxy error: ' + error.message)

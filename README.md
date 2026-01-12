@@ -2,7 +2,7 @@
 
 An intelligent AI-powered proxy that solves localization issues in Sonarr, Radarr, Lidarr, and Readarr. Automatically identifies and translates foreign language titles using Ollama LLM, ensuring your media library matches localized releases perfectly, we achieve acceptable results with LLM gemma3:4b
 
-![Localizarr Logo](image/README/1759795301449.png)
+![Localizarr Logo](image/README/logo.png)
 
 ## ✨ Key Features
 
@@ -23,40 +23,143 @@ An intelligent AI-powered proxy that solves localization issues in Sonarr, Radar
 - **LLM Response Cache**: SHA-256 hashed caching prevents redundant API calls (1-hour TTL)
 - **Smart Indexer Cache**: Automatic caching for any content-type (JSON, XML, RSS, HTML)
 - **Configurable TTL**: Separate cache times for success/error responses
+- **Flexible Processing**: Synchronous or asynchronous title processing via filesystem queues
+- **Background Jobs**: Queue-based LLM analysis for improved performance on resource-constrained systems
 
-### 🛠 Developer-Friendly
+## 🛠 Developer-Friendly
 
 - **Modern Tech Stack**: Node.js, TypeScript, AdonisJS, Vue.js
 - **RESTful API**: Clean API endpoints for integrations
 - **SQLite Database**: Lightweight, file-based database
 - **Comprehensive Testing**: Unit, functional, and LLM integration tests
 
-## 🚀 Quick Start
-
-### Docker (Recommended)
+## 🚀 Deploy with Docker Compose
 
 ```yaml
 version: '3.8'
 services:
   localizarr:
     image: vinicioslc/localizarr:latest
+    container_name: localizarr
     ports:
-      - "5005:5005"  # Main application
-      - "5006:5006"  # Prowlarr proxy
+      - "5005:5005"  # Main application port
+      - "5006:5006"  # Prowlarr proxy port
     environment:
-      - ENABLE_OLLAMA_PROCESSING=true
-      - OLLAMA_HOST=host.docker.internal
-      - OLLAMA_PORT=11434
+      # Application Configuration
+      - APP_NAME=Localizarr
+      - PORT=5005
+      - HOST=0.0.0.0
+      - LOG_LEVEL=info
+      - APP_KEY=your-generated-app-key-here
+      - API_KEY=your-optional-api-key-here
+      - NODE_ENV=production
+      - SESSION_DRIVER=cookie
+
+      # Database Configuration
+      - DB_CONNECTION=sqlite
+
+      # Proxy Configuration
+      - PROXY_PORT=5006
+
+      # Ollama AI Processing Configuration
+      - ENABLE_OLLAMA=true
+      - USE_QUEUED_LLM=false
+      - ENABLE_QUEUE_PROCESSING=true
+      - LLM_CACHE_EXPIRY_SECONDS=3600
+
+      # Ollama AI Server Configuration
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen3:1.7b
     volumes:
       - ./data:/app/data
+    depends_on:
+      - ollama
+    restart: unless-stopped
 
   ollama:
     image: ollama/ollama:latest
+    container_name: ollama
     ports:
       - "11434:11434"
     volumes:
       - ./ollama:/root/.ollama
+    restart: unless-stopped
 ```
+
+### Setup Instructions
+
+1. **Create docker-compose.yml** with the configuration above
+2. **Generate APP_KEY**:
+
+   ```bash
+   docker run --rm vinicioslc/localizarr:latest node ace generate:key
+   ```
+
+   Copy the generated key to the `APP_KEY` environment variable.
+
+3. **Start services**:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Pull Ollama model** (first run):
+
+   ```bash
+   docker-compose exec ollama ollama pull qwen3:1.7b
+   ```
+
+5. **Access Localizarr** at `http://localhost:5005`
+
+### ⚙️ Environment Variables Reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_NAME` | `Localizarr` | Application name for logging |
+| `PORT` | `5005` | Main application port |
+| `HOST` | `0.0.0.0` | Host to bind the server |
+| `LOG_LEVEL` | `info` | Logging level (error, warn, info, debug) |
+| `APP_KEY` | *Required* | Secret key for encryption (generate with `node ace generate:key`) |
+| `API_KEY` | *Optional* | API key for authentication |
+| `NODE_ENV` | `development` | Environment mode |
+| `SESSION_DRIVER` | `cookie` | Session storage driver |
+| `DB_CONNECTION` | `sqlite` | Database connection type |
+| `PROXY_PORT` | `5006` | Port for Prowlarr proxy |
+| `ENABLE_OLLAMA` | `true` | Enable/disable LLM-based title processing |
+| `USE_QUEUED_LLM` | `false` | Use queues for LLM processing (recommended for low-end hardware) |
+| `ENABLE_QUEUE_PROCESSING` | `true` | Enable/disable queue message processing |
+| `LLM_CACHE_EXPIRY_SECONDS` | `3600` | Cache TTL for LLM responses (seconds) |
+| `OLLAMA_URL` | `http://localhost:11434` | Full URL to Ollama server |
+| `OLLAMA_MODEL` | `qwen3:1.7b` | LLM model to use for analysis |
+
+1. **Access Localizarr** at `http://localhost:5005`
+
+### ⚙️ Environment Variables Reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_NAME` | `Localizarr` | Application name for logging |
+| `PORT` | `5005` | Main application port |
+| `HOST` | `0.0.0.0` | Host to bind the server |
+| `LOG_LEVEL` | `info` | Logging level (error, warn, info, debug) |
+| `APP_KEY` | *Required* | Secret key for encryption (generate with `node ace generate:key`) |
+| `API_KEY` | *Optional* | API key for authentication |
+| `NODE_ENV` | `development` | Environment mode |
+| `SESSION_DRIVER` | `cookie` | Session storage driver |
+| `DB_CONNECTION` | `sqlite` | Database connection type |
+| `PROXY_PORT` | `5006` | Port for Prowlarr proxy |
+| `ENABLE_OLLAMA` | `true` | Enable/disable LLM-based title processing |
+| `USE_QUEUED_LLM` | `false` | Use queues for LLM processing (recommended for low-end hardware) |
+| `ENABLE_QUEUE_PROCESSING` | `true` | Enable/disable queue message processing |
+| `LLM_CACHE_EXPIRY_SECONDS` | `3600` | Cache TTL for LLM responses (seconds) |
+| `OLLAMA_URL` | `http://localhost:11434` | Full URL to Ollama server |
+| `OLLAMA_MODEL` | `qwen3:1.7b` | LLM model to use for analysis |
+
+### Processing Modes
+
+- **Synchronous** (`USE_QUEUED_LLM=false`): Titles are processed immediately, blocking the HTTP response until LLM analysis completes
+- **Asynchronous** (`USE_QUEUED_LLM=true`): Titles are queued for background processing, improving response times on low-end hardware. Translations become available on subsequent requests.
+- **Queue Processing** (`ENABLE_QUEUE_PROCESSING=false`): Disables queue message processing. Messages can still be published but won't be consumed, useful for debugging or maintenance.
 
 ### Local Development
 
@@ -74,6 +177,11 @@ npm run dev
 3. **Translate**: Automatically renames localized titles to their original English equivalents
 4. **Cache**: Stores translations for faster future lookups
 
+**Processing Modes:**
+
+- **Synchronous**: Immediate LLM analysis, titles corrected in real-time
+- **Asynchronous**: Background processing via queues, titles corrected on subsequent requests
+
 **Example:**
 
 ```text
@@ -81,60 +189,7 @@ Input:  "Pacificador.S02E04.1080p.WEB-DL.DUAL.5.1"
 Output: "Peacemaker.S02E04.1080p.WEB-DL.DUAL.5.1"
 ```
 
-## 🛠 For Developers
-
-### Tech Stack
-
-- **Backend**: Node.js 18+, TypeScript, AdonisJS
-- **Frontend**: Vue.js 3, Inertia.js
-- **Database**: SQLite with Lucid ORM
-- **AI**: Ollama integration
-- **Testing**: Japa test runner
-
-### Development Setup
-
-```bash
-# Install dependencies
-npm install
-
-# Start development server
-npm run dev
-
-# Run tests
-npm test
-
-# Reset database
-npm run reset:db
-```
-
-### Project Structure
-
-```text
-localizarr/
-├── app/                 # Application code
-│   ├── controllers/     # API controllers
-│   ├── services/        # Business logic
-│   └── models/         # Database models
-├── tests/              # Test suites
-│   ├── functional/     # API tests
-│   └── llm-integration/ # AI integration tests
-├── database/           # Migrations & seeders
-└── resources/          # Frontend assets
-```
-
-### Contributing
-
-We welcome contributions! Check out our [contributing guide](CONTRIBUTING.md) to get started.
-
-**Areas for contribution:**
-
-- LLM processing improvements
-- Additional language support
-- UI/UX enhancements
-- Performance optimizations
-- New indexer integrations
-
-## 📞 Support & Community
+## Support & Community
 
 - [GitHub Issues](https://github.com/vinicioslc/localizarr/issues)
 - [Telegram](https://t.me/vinicioslc)
@@ -146,3 +201,7 @@ Special thanks to the **UmlautAdaptarr** project for inspiring this localization
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+**For Developers**: See [README-dev.md](README-dev.md) for technical documentation, development setup, and contribution guidelines.
