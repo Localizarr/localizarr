@@ -84,7 +84,7 @@ export class ProxyService {
         this.logger.warn('Falha na autenticação do proxy')
         socket.write(
           'HTTP/1.1 407 Proxy Authentication Required\r\n' +
-          'Proxy-Authenticate: Basic realm="Proxy"\r\n\r\n'
+            'Proxy-Authenticate: Basic realm="Proxy"\r\n\r\n'
         )
         socket.end()
         return

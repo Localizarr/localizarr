@@ -1,10 +1,10 @@
 import { BaseSeeder } from '@adonisjs/lucid/seeders'
 
 import axios from 'axios'
-import * as fs from 'fs'
-import * as zlib from 'zlib'
+import * as fs from 'node:fs'
+import * as zlib from 'node:zlib'
 import csv from 'csv-parser'
-import * as path from 'path'
+import * as path from 'node:path'
 import db from '@adonisjs/lucid/services/db'
 import Title from '#models/title'
 
@@ -132,9 +132,10 @@ export default class extends BaseSeeder {
       const titleData = {
         imdb_id: row.tconst,
         media_type: row.titleType === 'movie' || row.titleType === 'tvMovie' ? 'movie' : 'tv',
-        original_title: (row.originalTitle === '\\N' || !row.originalTitle)
-          ? (row.primaryTitle || 'Unknown')
-          : row.originalTitle,
+        original_title:
+          row.originalTitle === '\\N' || !row.originalTitle
+            ? row.primaryTitle || 'Unknown'
+            : row.originalTitle,
         imdb_data: JSON.stringify({
           primaryTitle: row.primaryTitle || 'Unknown',
           titleType: row.titleType,
@@ -176,7 +177,7 @@ export default class extends BaseSeeder {
     console.log(`⏭️  Total ignorado: ${totalSkipped.toLocaleString()}`)
   }
 
-  private async insertBatch(batch: any[]): Promise<{ inserted: number, updated: number }> {
+  private async insertBatch(batch: any[]): Promise<{ inserted: number; updated: number }> {
     const trx = await db.transaction()
     let insertedCount = 0
     let updatedCount = 0

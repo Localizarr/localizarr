@@ -68,13 +68,18 @@ export class TitlesService {
           const title = localizedName.title
 
           // Add mapping from localized name to original title (reverse replacement)
-          // Append language code in brackets to help user identify the replacement
-          this.titleReplacements.set(localizedName.localizedName, `${title.originalTitle}.${localizedName.langId}`)
+          this.titleReplacements.set(
+            localizedName.localizedName,
+            title.originalTitle
+          )
         }
 
         console.log(`[TitlesService] Loaded ${this.titleReplacements.size} title replacements`)
       } catch (error) {
-        console.log(`[TitlesService] Database not available or not initialized (this is normal in test environments):`, error.message)
+        console.log(
+          `[TitlesService] Database not available or not initialized (this is normal in test environments):`,
+          error.message
+        )
         this.titleReplacements.clear()
       }
     }
@@ -225,7 +230,9 @@ export class TitlesService {
             await title.save()
             console.log(`[TitlesService] Updated empty title: ${originalTitle}`)
           } else {
-            console.log(`[TitlesService] Title already has value, skipping update: ${originalTitle}`)
+            console.log(
+              `[TitlesService] Title already has value, skipping update: ${originalTitle}`
+            )
           }
         }
 

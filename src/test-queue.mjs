@@ -8,19 +8,16 @@ async function test() {
   console.log('Publishing message...')
   await q.publish('process-titles-async', {
     responseData: {
-      streams: [
-        { title: 'Test Movie 2024' },
-        { title: 'Another Test Film' }
-      ],
+      streams: [{ title: 'Test Movie 2024' }, { title: 'Another Test Film' }],
       cacheMaxAge: 3600,
       staleRevalidate: 14400,
-      staleError: 604800
+      staleError: 604800,
     },
-    imdbId: 'tt13146488'
+    imdbId: 'tt13146488',
   })
 
   console.log('Waiting 1 second for processing...')
-  await new Promise(resolve => setTimeout(resolve, 1000))
+  await new Promise((resolve) => setTimeout(resolve, 1000))
 
   console.log('Checking files...')
   const fs = await import('fs/promises')

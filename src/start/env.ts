@@ -38,6 +38,14 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   /*
   |----------------------------------------------------------
+  | Indexer Cache Configuration
+  |----------------------------------------------------------
+  */
+  INDEXER_CACHE_SUCCESS_TTL_SECONDS: Env.schema.number.optional(),
+  INDEXER_CACHE_ERROR_TTL_SECONDS: Env.schema.number.optional(),
+
+  /*
+  |----------------------------------------------------------
   | Variables for configuring session package
   |----------------------------------------------------------
   */

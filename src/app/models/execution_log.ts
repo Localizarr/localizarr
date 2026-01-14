@@ -9,6 +9,9 @@ export default class ExecutionLog extends BaseModel {
   declare routeUrl: string
 
   @column()
+  declare targetUrl: string | null
+
+  @column()
   declare indexerName: string | null
 
   @column()

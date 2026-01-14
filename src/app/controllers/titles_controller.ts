@@ -15,10 +15,9 @@ export default class TitlesController {
 
       if (search) {
         query = query.where((q) => {
-          q.where('original_title', 'ILIKE', `%${search}%`)
-            .orWhereHas('localizedNames', (lq) => {
-              lq.where('localized_name', 'ILIKE', `%${search}%`)
-            })
+          q.where('original_title', 'LIKE', `%${search}%`).orWhereHas('localizedNames', (lq) => {
+            lq.where('localized_name', 'LIKE', `%${search}%`)
+          })
         })
       }
 
@@ -31,6 +30,13 @@ export default class TitlesController {
       query.orderBy('updated_at', 'desc')
 
       const titles = await query.paginate(page, limit)
+
+      // Log IMDb data for titles that have it
+      for (const title of titles) {
+        if (title.imdbData) {
+          console.log(`[TitlesController] IMDb data for title ${title.id} (${title.imdbId}): ${JSON.stringify(title.imdbData)}`)
+        }
+      }
 
       // API request returns JSON
       if (request.url().startsWith('/api')) {
@@ -56,6 +62,67 @@ export default class TitlesController {
   }
 
   /**
+   * Store a new title with localized name
+   */
+  public async store({ request, response, session }: HttpContext) {
+    try {
+      const { originalTitle, imdbId, mediaType, langId, localizedName } = request.only([
+        'originalTitle',
+        'imdbId',
+        'mediaType',
+        'langId',
+        'localizedName'
+      ])
+
+      if (!originalTitle || !localizedName || !langId) {
+        if (request.header('X-Inertia')) {
+          session.flash('error', 'Original title, localized name, and language are required')
+          return response.redirect().back()
+        }
+        return response.status(400).json({
+          success: false,
+          message: 'Original title, localized name, and language are required',
+        })
+      }
+
+      // Create the title
+      const title = await Title.create({
+        imdbId: imdbId || `manual_${Date.now()}`,
+        mediaType: mediaType || 'tv',
+        originalTitle: originalTitle.trim(),
+      })
+
+      // Create the localized name
+      await LocalizedName.create({
+        titleId: title.id,
+        langId: langId,
+        localizedName: localizedName.trim(),
+      })
+
+      if (request.header('X-Inertia')) {
+        session.flash('success', 'Title added successfully')
+        return response.redirect().back()
+      }
+
+      return response.status(201).json({
+        success: true,
+        data: title,
+      })
+    } catch (error) {
+      console.error('Error creating title:', error)
+      if (request.header('X-Inertia')) {
+        session.flash('error', 'Error creating title')
+        return response.redirect().back()
+      }
+      return response.status(500).json({
+        success: false,
+        message: 'Error creating title',
+        error: error.message,
+      })
+    }
+  }
+
+  /**
    * Get localized names for a specific title (API only)
    */
   public async localizedNames({ params, response }: HttpContext) {
@@ -70,6 +137,70 @@ export default class TitlesController {
       return response.status(500).json({
         success: false,
         message: 'Error fetching localized names',
+        error: error.message,
+      })
+    }
+  }
+
+  /**
+   * Store a new localized name for a title
+   */
+  public async storeLocalizedName({ params, request, response, session }: HttpContext) {
+    try {
+      const titleId = params.id
+      const { localizedName, langId } = request.only(['localizedName', 'langId'])
+
+      if (!localizedName || !langId) {
+        if (request.header('X-Inertia')) {
+          session.flash('error', 'Localized name and language ID are required')
+          return response.redirect().back()
+        }
+        return response.status(400).json({
+          success: false,
+          message: 'Localized name and language ID are required',
+        })
+      }
+
+      // Check if the title exists
+      const title = await Title.find(titleId)
+      if (!title) {
+        if (request.header('X-Inertia')) {
+          session.flash('error', 'Title not found')
+          return response.redirect().back()
+        }
+        return response.status(404).json({
+          success: false,
+          message: 'Title not found',
+        })
+      }
+
+      // Create the localized name
+      const newLocalized = await LocalizedName.create({
+        titleId: titleId,
+        langId: langId,
+        localizedName: localizedName.trim(),
+      })
+
+      // Check if this is an Inertia request
+      if (request.header('X-Inertia')) {
+        // For Inertia requests, redirect back to refresh the page
+        return response.redirect().back()
+      }
+
+      // For API requests, return JSON
+      return response.status(201).json({
+        success: true,
+        data: newLocalized,
+      })
+    } catch (error) {
+      console.error('Error creating localized name:', error)
+      if (request.header('X-Inertia')) {
+        session.flash('error', 'Error creating localized name')
+        return response.redirect().back()
+      }
+      return response.status(500).json({
+        success: false,
+        message: 'Error creating localized name',
         error: error.message,
       })
     }
@@ -128,7 +259,7 @@ export default class TitlesController {
 
       // Count before delete
       const countBefore = await LocalizedName.query().count('* as total')
-      console.log(`[titles_controller] Localized names before delete: ${countBefore[0].total}`)
+      console.log(`[titles_controller] Localized names before delete: ${(countBefore[0] as any).$extras.total}`)
 
       // Delete all localized names first
       const deleteResult = await LocalizedName.query().delete()
@@ -136,7 +267,7 @@ export default class TitlesController {
 
       // Count after delete
       const countAfter = await LocalizedName.query().count('* as total')
-      console.log(`[titles_controller] Localized names after delete: ${countAfter[0].total}`)
+      console.log(`[titles_controller] Localized names after delete: ${(countAfter[0] as any).$extras.total}`)
 
       // Preserve titles, only clear localizations as requested
       // await Title.query().delete()

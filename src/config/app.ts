@@ -58,13 +58,23 @@ export const titleProcessing = {
 }
 
 /**
+ * Indexer cache configuration
+ */
+export const indexerCache = {
+  successTtlSeconds: env.get('INDEXER_CACHE_SUCCESS_TTL_SECONDS', 300), // Default 5 minutes
+  errorTtlSeconds: env.get('INDEXER_CACHE_ERROR_TTL_SECONDS', 60), // Default 1 minute
+}
+
+/**
  * Ollama AI configuration
  */
 const ollamaUrl = env.get('OLLAMA_URL', 'http://localhost:11434')
 try {
   new URL(ollamaUrl)
 } catch (error) {
-  console.error(`[Config] Invalid OLLAMA_URL: "${ollamaUrl}". Using default "http://localhost:11434". Error: ${error.message}`)
+  console.error(
+    `[Config] Invalid OLLAMA_URL: "${ollamaUrl}". Using default "http://localhost:11434". Error: ${error.message}`
+  )
 }
 
 export const ollama = {

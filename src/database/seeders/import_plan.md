@@ -1,6 +1,7 @@
 ---
 description: Pipeline de importação de dados do IMDb via Seeder
 ---
+
 # Plano de Implementação: Importação de Dados do IMDb (TSV Compressed)
 
 Este plano detalha como criar um Seeder no AdonisJS que baixa, descompacta e importa o dataset `title.basics.tsv.gz` do IMDb para o banco de dados SQLite.
@@ -12,6 +13,7 @@ Utilizaremos Node.js Streams para processar o arquivo linha por linha, garantind
 ## 1. Pré-requisitos e Dependências
 
 Bibliotecas necessárias (nativas do Node.js ou comuns):
+
 - `axios`: Para baixar o arquivo.
 - `zlib`: Para descompactar o .gz (nativo).
 - `fs`: Para manipulação de arquivos (nativo).
@@ -26,6 +28,7 @@ npm install axios
 Criar um novo arquivo seeder `src/database/seeders/imdb_import_seeder.ts`.
 
 ### Constantes e Configurações
+
 - **URL**: `https://datasets.imdbws.com/title.basics.tsv.gz`
 - **PATH TEMP**: `tmp/title.basics.tsv.gz`
 - **BATCH_SIZE**: 1000 (ajustável para performance vs memória)
@@ -45,20 +48,20 @@ Criar um novo arquivo seeder `src/database/seeders/imdb_import_seeder.ts`.
 3.  **Parsing e Mapeamento**:
     - **Header**: Ler a primeira linha para identificar colunas (ou ignorar se a estrutura for fixa: `tconst`, `titleType`, `primaryTitle`, `originalTitle`, `isAdult`, `startYear`, `endYear`, `runtimeMinutes`, `genres`).
     - **Filtragem**:
-        - Ignorar `isAdult === 1` (opcional, mas comum).
-        - Filtrar `titleType` relevante (ex: `movie`, `tvSeries`, `tvMiniSeries`) para economizar espaço se necessário.
+      - Ignorar `isAdult === 1` (opcional, mas comum).
+      - Filtrar `titleType` relevante (ex: `movie`, `tvSeries`, `tvMiniSeries`) para economizar espaço se necessário.
     - **Tratamento de Nulos**: Substituir `\N` por `null` ou string vazia.
     - **Mapeamento para DB** (`Title` Model):
-        - `tconst` -> `imdb_id`
-        - `titleType` -> `media_type`
-        - `originalTitle` -> `original_title`
-        - Objeto completo -> `imdb_data` (JSON)
+      - `tconst` -> `imdb_id`
+      - `titleType` -> `media_type`
+      - `originalTitle` -> `original_title`
+      - Objeto completo -> `imdb_data` (JSON)
 
 4.  **Inserção em Lote (Batch Insert)**:
     - Acumular registros processados em um array `batch`.
     - Quando `batch.length >= BATCH_SIZE`:
-        - Executar `Title.createMany(batch)` ou `db.table('titles').multiInsert(batch)`.
-        - Limpar o array.
+      - Executar `Title.createMany(batch)` ou `db.table('titles').multiInsert(batch)`.
+      - Limpar o array.
     - Ao final do arquivo, inserir os registros restantes.
 
 ## 3. Otimizações de Banco de Dados
@@ -93,6 +96,7 @@ export default class extends BaseSeeder {
 ```
 
 ## 5. Próximos Passos
+
 1. Execute `npm install axios` se ainda não estiver instalado.
 2. Crie o arquivo do seeder.
 3. Execute `node ace db:seed` para testar.

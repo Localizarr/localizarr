@@ -25,6 +25,7 @@ node ace db:seed --files=database/seeders/imdb_import_seeder.ts
 ## 📊 Dados Importados
 
 Cada título contém:
+
 - **imdb_id**: ID único do IMDb (ex: `tt0468569`)
 - **media_type**: `movie` ou `tv`
 - **original_title**: Título original

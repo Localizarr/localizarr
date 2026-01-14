@@ -56,11 +56,11 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
           const models = await OllamaService.checkAvailableModels()
           if (!models) {
             console.error('[Startup] Ollama models could not be listed; disabling LLM processing')
-              ; (titleProcessing as any).enableOllamaProcessing = false
+            ;(titleProcessing as any).enableOllamaProcessing = false
           }
         } catch (err) {
           console.error('[Startup] Error during Ollama check:', err)
-            ; (titleProcessing as any).enableOllamaProcessing = false
+          ;(titleProcessing as any).enableOllamaProcessing = false
         }
       }
       // Queue processing is now initialized lazily in the controller

@@ -97,7 +97,7 @@ export default class extends BaseSeeder {
         langId: 'pt-BR',
       },
       {
-        localizedName: 'Trono de Vidro',
+        localizedName: 'A Guerra dos Tronos',
       }
     )
   }

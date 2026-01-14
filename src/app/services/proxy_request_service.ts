@@ -1,6 +1,7 @@
 import axios from 'axios'
 import ProxyCache from '#models/proxy_cache'
 import { DateTime } from 'luxon'
+import { indexerCache } from '#config/app'
 import { inject } from '@adonisjs/core'
 
 @inject()
@@ -24,7 +25,10 @@ export class ProxyRequestService {
     if (cached) {
       console.log(`[ProxyRequestService] [CACHE HIT] Returning cached response for: ${targetUri}`)
       try {
-        const cachedHeaders = typeof cached.responseHeaders === 'string' ? JSON.parse(cached.responseHeaders) : cached.responseHeaders
+        const cachedHeaders =
+          typeof cached.responseHeaders === 'string'
+            ? JSON.parse(cached.responseHeaders)
+            : cached.responseHeaders
         const contentType = (cachedHeaders['content-type'] || '').toLowerCase()
 
         let responseData = cached.responseBody
@@ -59,32 +63,20 @@ export class ProxyRequestService {
       headers: {
         'User-Agent': this.userAgent,
         ...headersToForward,
-        host: new URL(targetUri).hostname,
+        'host': new URL(targetUri).hostname,
       },
       validateStatus: () => true,
     })
 
-    // Cache for 12 minutes
-    const expiresAt = DateTime.now().plus({ minutes: 12 })
+    // Determine cache TTL based on response status
+    const isSuccess = response.status >= 200 && response.status < 300
+    const ttlSeconds = isSuccess ? indexerCache.successTtlSeconds : indexerCache.errorTtlSeconds
+    const expiresAt = DateTime.now().plus({ seconds: ttlSeconds })
 
-    try {
-      // Delete old cache entry if exists
-      await ProxyCache.query()
-        .where('url', targetUri)
-        .where('method', method.toUpperCase())
-        .delete()
+    console.log(`[ProxyRequestService] Caching response (status: ${response.status}) for ${ttlSeconds} seconds`)
 
-      await ProxyCache.create({
-        url: targetUri,
-        method: method.toUpperCase(),
-        responseBody: typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data),
-        responseHeaders: JSON.stringify(response.headers),
-        statusCode: response.status,
-        expiresAt: expiresAt,
-      })
-    } catch (e) {
-      console.error('[ProxyRequestService] Error saving to cache', e)
-    }
+    // Cache the response asynchronously (don't block the response)
+    this.cacheResponseAsync(targetUri, method, response, expiresAt, now!)
 
     return {
       data: response.data,
@@ -94,6 +86,40 @@ export class ProxyRequestService {
         'X-Proxy-Cache': 'MISS',
       },
       fromCache: false,
+    }
+  }
+
+  /**
+   * Cache response asynchronously without blocking the main request flow
+   */
+  private async cacheResponseAsync(
+    targetUri: string,
+    method: string,
+    response: any,
+    expiresAt: DateTime,
+    now: string
+  ): Promise<void> {
+    try {
+      // Delete only expired cache entries for this URL/method
+      await ProxyCache.query()
+        .where('url', targetUri)
+        .where('method', method.toUpperCase())
+        .where('expires_at', '<=', now)
+        .delete()
+
+      await ProxyCache.create({
+        url: targetUri,
+        method: method.toUpperCase(),
+        responseBody:
+          typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data),
+        responseHeaders: JSON.stringify(response.headers),
+        statusCode: response.status,
+        expiresAt: expiresAt,
+      })
+
+      console.log(`[ProxyRequestService] Successfully cached response for: ${targetUri}`)
+    } catch (e) {
+      console.error('[ProxyRequestService] Error saving to cache asynchronously', e)
     }
   }
 }

@@ -6,9 +6,7 @@ export default class LogsController {
     const page = request.input('page', 1)
     const limit = 20
 
-    const logs = await ExecutionLog.query()
-      .orderBy('createdAt', 'desc')
-      .paginate(page, limit)
+    const logs = await ExecutionLog.query().orderBy('createdAt', 'desc').paginate(page, limit)
 
     const serializedLogs = logs.serialize()
     console.log(`[LogsController] Page: ${page}, Limit: ${limit}`)

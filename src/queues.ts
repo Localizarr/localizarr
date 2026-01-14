@@ -4,4 +4,4 @@ export const QUEUES = {
   PROCESS_TITLES_ASYNC: 'process-titles-async',
 } as const
 
-export type QueueTopic = typeof QUEUES[keyof typeof QUEUES]
+export type QueueTopic = (typeof QUEUES)[keyof typeof QUEUES]

@@ -2,7 +2,6 @@
 import { Head, Link, router } from "@inertiajs/vue3";
 import { ref } from "vue";
 
-
 // Props from Adonis Controller (Inertia)
 const props = defineProps<{
   titles: {
@@ -46,9 +45,22 @@ interface ParsedImdbData {
 const searchQuery = ref("");
 const selectedLang = ref("");
 const expandedTitles = ref<Set<number>>(new Set());
+const showAddModal = ref(false);
+const selectedTitleForAdd = ref<Title | null>(null);
+const newLocalizedName = ref("");
+const newLangId = ref("pt-BR");
+
+// New title modal refs
+const showNewTitleModal = ref(false);
+const titleSearchQuery = ref("");
+const searchResults = ref<Title[]>([]);
+const selectedExistingTitle = ref<Title | null>(null);
+const newTitleLangId = ref("pt-BR");
+const newTitleLocalized = ref("");
 
 // Debounced Search Watcher
 let searchTimeout: NodeJS.Timeout;
+let titleSearchTimeout: NodeJS.Timeout;
 
 const performSearch = () => {
   router.get(
@@ -112,6 +124,97 @@ const clearAllLocalizedNames = () => {
   router.delete("/api/titles/clear-all", { preserveScroll: true });
 };
 
+const registerTitle = (titleId: number) => {
+  const title = props.titles.data.find(t => t.id === titleId);
+  if (title) {
+    selectedTitleForAdd.value = title;
+    newLocalizedName.value = "";
+    newLangId.value = "pt-BR";
+    showAddModal.value = true;
+  }
+};
+
+const addLocalizedName = () => {
+  if (!selectedTitleForAdd.value || !newLocalizedName.value.trim()) return;
+
+  router.post(`/api/titles/${selectedTitleForAdd.value.id}/localized-names`, {
+    localizedName: newLocalizedName.value.trim(),
+    langId: newLangId.value,
+  }, {
+    preserveScroll: true,
+    onSuccess: () => {
+      showAddModal.value = false;
+      selectedTitleForAdd.value = null;
+      newLocalizedName.value = "";
+    },
+  });
+};
+
+const closeAddModal = () => {
+  showAddModal.value = false;
+  selectedTitleForAdd.value = null;
+  newLocalizedName.value = "";
+};
+
+const openNewTitleModal = () => {
+  showNewTitleModal.value = true;
+};
+
+const closeNewTitleModal = () => {
+  showNewTitleModal.value = false;
+  titleSearchQuery.value = "";
+  searchResults.value = [];
+  selectedExistingTitle.value = null;
+  newTitleLangId.value = "pt-BR";
+  newTitleLocalized.value = "";
+  if (titleSearchTimeout) {
+    clearTimeout(titleSearchTimeout);
+  }
+};
+
+const searchTitles = async () => {
+  if (titleSearchTimeout) {
+    clearTimeout(titleSearchTimeout);
+  }
+
+  titleSearchTimeout = setTimeout(async () => {
+    if (!titleSearchQuery.value.trim()) {
+      searchResults.value = [];
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/titles?search=${encodeURIComponent(titleSearchQuery.value)}&limit=10`);
+      const data = await response.json();
+      if (data.success) {
+        searchResults.value = data.data.data;
+      }
+    } catch (error) {
+      console.error('Error searching titles:', error);
+    }
+  }, 300); // 300ms debounce
+};
+
+const selectTitle = (title: Title) => {
+  selectedExistingTitle.value = title;
+  searchResults.value = [];
+  titleSearchQuery.value = title.originalTitle;
+};
+
+const addTranslationToExistingTitle = () => {
+  if (!selectedExistingTitle.value || !newTitleLocalized.value.trim()) return;
+
+  router.post(`/api/titles/${selectedExistingTitle.value.id}/localized-names`, {
+    localizedName: newTitleLocalized.value.trim(),
+    langId: newTitleLangId.value,
+  }, {
+    preserveScroll: true,
+    onSuccess: () => {
+      closeNewTitleModal();
+    },
+  });
+};
+
 const parseImdbData = (data: any): ParsedImdbData | null => {
   if (!data) return null;
   try {
@@ -131,9 +234,11 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
 <template>
   <Head title="Localizarr - Media Localizer" />
 
-  <div class="min-h-screen bg-[#FDFDFC] text-[#21201C] selection:bg-primary/20">
+  <div class="min-h-screen bg-[#2A2A2A] text-[#E5E5E5] selection:bg-primary/20">
     <!-- Header -->
-    <header class="sticky top-0 z-50 backdrop-blur-md bg-white/70 border-b border-sand-5">
+    <header
+      class="sticky top-0 z-50 backdrop-blur-md bg-[#1F1F1F]/80 border-b border-[#404040]"
+    >
       <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div
@@ -143,7 +248,7 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
           </div>
           <div>
             <h1 class="text-xl font-bold tracking-tight">Localizarr</h1>
-            <p class="text-xs text-sand-11 font-medium uppercase tracking-wider">
+            <p class="text-xs text-[#B0B0B0] font-medium uppercase tracking-wider">
               Title Database
             </p>
           </div>
@@ -152,10 +257,16 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
         <div class="flex items-center gap-4">
           <Link
             href="/logs"
-            class="text-sm font-medium text-sand-11 hover:text-primary transition-colors"
+            class="text-sm font-medium text-[#B0B0B0] hover:text-primary transition-colors"
           >
             View Logs
           </Link>
+          <button
+            @click="openNewTitleModal"
+            class="px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-all active:scale-95"
+          >
+            + Add Translation
+          </button>
           <button
             @click="clearAllLocalizedNames"
             class="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-all active:scale-95"
@@ -167,7 +278,10 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
     </header>
 
     <!-- Flash Messages -->
-    <div v-if="props.flash?.success || props.flash?.error" class="max-w-7xl mx-auto px-6 py-4">
+    <div
+      v-if="props.flash?.success || props.flash?.error"
+      class="max-w-7xl mx-auto px-6 py-4"
+    >
       <div
         v-if="props.flash?.success"
         class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg"
@@ -186,11 +300,11 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
       <!-- Search & Filters -->
       <section class="mb-12">
         <div
-          class="flex flex-col md:flex-row gap-4 p-2 bg-sand-3 rounded-2xl shadow-inner border border-sand-4"
+          class="flex flex-col md:flex-row gap-4 p-2 bg-[#3A3A3A] rounded-2xl shadow-inner border border-[#505050]"
         >
           <div class="relative flex-1 group">
             <div
-              class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-sand-9 group-focus-within:text-primary transition-colors"
+              class="absolute inset-y-0 left-4 flex items-center pointer-events-none text-[#888888] group-focus-within:text-primary transition-colors"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -211,7 +325,7 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
               @input="handleSearchInput"
               type="text"
               placeholder="Search by original or localized title..."
-              class="w-full pl-12 pr-4 py-3 bg-white border-none rounded-xl shadow-sm focus:ring-2 focus:ring-primary transition-all placeholder:text-sand-9"
+              class="w-full pl-12 pr-4 py-3 bg-sand-2 border-none rounded-xl shadow-sm focus:ring-2 focus:ring-primary transition-all placeholder:text-sand-9"
             />
           </div>
 
@@ -219,7 +333,7 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
             <select
               v-model="selectedLang"
               @change="changeLang"
-              class="pl-4 pr-10 py-3 bg-white border-none rounded-xl shadow-sm focus:ring-2 focus:ring-primary appearance-none transition-all cursor-pointer min-w-[160px]"
+              class="pl-4 pr-10 py-3 bg-sand-2 border-none rounded-xl shadow-sm focus:ring-2 focus:ring-primary appearance-none transition-all cursor-pointer min-w-[160px]"
             >
               <option value="">All Languages</option>
               <option value="pt-BR">🇧🇷 Portuguese</option>
@@ -267,7 +381,7 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
         <article
           v-for="title in titles.data"
           :key="title.id"
-          class="group bg-white rounded-[2rem] border border-sand-5 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all duration-500 overflow-hidden flex flex-col"
+          class="group bg-sand-2 rounded-[2rem] border border-sand-5 shadow-sm hover:shadow-xl hover:shadow-primary/5 transition-all duration-500 overflow-hidden flex flex-col"
         >
           <!-- Card Content -->
           <div class="p-8 flex-1">
@@ -331,7 +445,7 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
           <div class="p-4 bg-sand-2 flex items-center gap-2 border-t border-sand-4">
             <button
               @click="toggleExpanded(title.id)"
-              class="flex-1 py-3 bg-white hover:bg-primary hover:text-white border border-sand-5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 active:scale-95"
+              class="flex-1 py-3 bg-sand-2 hover:bg-primary hover:text-white border border-sand-5 rounded-xl text-sm font-bold shadow-sm transition-all flex items-center justify-center gap-2 active:scale-95"
             >
               <span>{{ expandedTitles.has(title.id) ? "Collapse" : "Manage" }}</span>
               <svg
@@ -349,8 +463,27 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
               </svg>
             </button>
             <button
+              @click="registerTitle(title.id)"
+              class="p-3 text-green-400 hover:text-green-600 hover:bg-green-900/20 rounded-xl transition-all active:scale-90"
+              title="Register title"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="w-5 h-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+            </button>
+            <button
               @click="deleteTitle(title.id)"
-              class="p-3 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all active:scale-90"
+              class="p-3 text-red-400 hover:text-red-600 hover:bg-red-900/20 rounded-xl transition-all active:scale-90"
               title="Remove title"
             >
               <svg
@@ -381,7 +514,7 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
               <div
                 v-for="localized in title.localizedNames"
                 :key="localized.id"
-                class="group/item flex items-center justify-between p-4 bg-white rounded-2xl border border-sand-5 hover:border-primary/30 transition-all shadow-sm"
+                class="group/item flex items-center justify-between p-4 bg-sand-2 rounded-2xl border border-sand-5 hover:border-primary/30 transition-all shadow-sm"
               >
                 <div class="flex items-center gap-3">
                   <div
@@ -428,7 +561,7 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
           :href="`/?page=${
             titles.meta.current_page - 1
           }&search=${searchQuery}&lang=${selectedLang}`"
-          class="flex items-center gap-2 px-6 py-3 bg-white border border-sand-5 rounded-2xl font-bold shadow-sm hover:bg-sand-3 transition-all active:scale-95"
+          class="flex items-center gap-2 px-6 py-3 bg-sand-2 border border-sand-5 rounded-2xl font-bold shadow-sm hover:bg-sand-3 transition-all active:scale-95"
           preserve-scroll
         >
           <svg
@@ -468,7 +601,7 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
           :href="`/?page=${
             titles.meta.current_page + 1
           }&search=${searchQuery}&lang=${selectedLang}`"
-          class="flex items-center gap-2 px-6 py-3 bg-white border border-sand-5 rounded-2xl font-bold shadow-sm hover:bg-sand-3 transition-all active:scale-95"
+          class="flex items-center gap-2 px-6 py-3 bg-sand-2 border border-sand-5 rounded-2xl font-bold shadow-sm hover:bg-sand-3 transition-all active:scale-95"
           preserve-scroll
         >
           <span>Next</span>
@@ -487,6 +620,150 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
         </Link>
       </footer>
     </main>
+
+    <!-- Add Localized Name Modal -->
+    <div v-if="showAddModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click="closeAddModal">
+      <div class="bg-sand-2 rounded-2xl border border-sand-5 shadow-xl max-w-md w-full mx-4" @click.stop>
+        <div class="p-6">
+          <h3 class="text-lg font-bold text-sand-12 mb-4">Add Localized Name</h3>
+          <p class="text-sm text-sand-11 mb-4">
+            Add a localized name for: <strong>{{ selectedTitleForAdd?.originalTitle }}</strong>
+          </p>
+
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-sand-12 mb-2">Language</label>
+              <select
+                v-model="newLangId"
+                class="w-full px-3 py-2 bg-sand-3 border border-sand-5 rounded-xl text-sand-12 focus:ring-2 focus:ring-primary focus:border-primary"
+              >
+                <option value="pt-BR">Portuguese (Brazil)</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-sand-12 mb-2">Localized Name</label>
+              <input
+                v-model="newLocalizedName"
+                type="text"
+                class="w-full px-3 py-2 bg-sand-3 border border-sand-5 rounded-xl text-sand-12 placeholder-sand-9 focus:ring-2 focus:ring-primary focus:border-primary"
+                placeholder="Enter localized title name"
+                @keyup.enter="addLocalizedName"
+              />
+            </div>
+          </div>
+
+          <div class="flex gap-3 mt-6">
+            <button
+              @click="closeAddModal"
+              class="flex-1 py-2 px-4 bg-sand-3 hover:bg-sand-4 border border-sand-5 rounded-xl text-sand-12 font-medium transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              @click="addLocalizedName"
+              :disabled="!newLocalizedName.trim()"
+              class="flex-1 py-2 px-4 bg-primary hover:bg-primary/90 disabled:bg-sand-4 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all"
+            >
+              Add Name
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Translation Modal -->
+    <div v-if="showNewTitleModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click="closeNewTitleModal">
+      <div class="bg-sand-2 rounded-2xl border border-sand-5 shadow-xl max-w-md w-full mx-4" @click.stop>
+        <div class="p-6">
+          <h3 class="text-lg font-bold text-sand-12 mb-4">Add Translation</h3>
+          <p class="text-sm text-sand-11 mb-4">
+            Search for an existing title and add a localized translation
+          </p>
+
+          <div class="space-y-4">
+            <!-- Title Search -->
+            <div>
+              <label class="block text-sm font-medium text-sand-12 mb-2">Search Title</label>
+              <input
+                v-model="titleSearchQuery"
+                type="text"
+                class="w-full px-3 py-2 bg-sand-3 border border-sand-5 rounded-xl text-sand-12 placeholder-sand-9 focus:ring-2 focus:ring-primary focus:border-primary"
+                placeholder="Type to search existing titles..."
+                @input="searchTitles"
+              />
+            </div>
+
+            <!-- Search Results -->
+            <div v-if="searchResults.length > 0" class="max-h-40 overflow-y-auto border border-sand-5 rounded-xl bg-sand-3">
+              <div
+                v-for="title in searchResults"
+                :key="title.id"
+                class="p-3 border-b border-sand-5 last:border-b-0 hover:bg-sand-4 cursor-pointer"
+                @click="selectTitle(title)"
+              >
+                <div class="font-medium text-sand-12">{{ title.originalTitle }}</div>
+                <div class="text-xs text-sand-10">{{ title.imdbId }} • {{ title.mediaType }}</div>
+              </div>
+            </div>
+
+            <!-- Selected Title Display -->
+            <div v-if="selectedExistingTitle" class="p-3 bg-primary/10 border border-primary/30 rounded-xl">
+              <div class="text-sm font-medium text-sand-12">Selected Title:</div>
+              <div class="font-bold text-primary">{{ selectedExistingTitle.originalTitle }}</div>
+              <div class="text-xs text-sand-10">{{ selectedExistingTitle.imdbId }} • {{ selectedExistingTitle.mediaType }}</div>
+            </div>
+
+            <!-- Language Selection -->
+            <div>
+              <label class="block text-sm font-medium text-sand-12 mb-2">Language</label>
+              <select
+                v-model="newTitleLangId"
+                class="w-full px-3 py-2 bg-sand-3 border border-sand-5 rounded-xl text-sand-12 focus:ring-2 focus:ring-primary focus:border-primary"
+              >
+                <option value="pt-BR">Portuguese (Brazil)</option>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+              </select>
+            </div>
+
+            <!-- Localized Name -->
+            <div>
+              <label class="block text-sm font-medium text-sand-12 mb-2">Localized Name</label>
+              <input
+                v-model="newTitleLocalized"
+                type="text"
+                class="w-full px-3 py-2 bg-sand-3 border border-sand-5 rounded-xl text-sand-12 placeholder-sand-9 focus:ring-2 focus:ring-primary focus:border-primary"
+                placeholder="Enter localized title name"
+                @keyup.enter="addTranslationToExistingTitle"
+              />
+            </div>
+          </div>
+
+          <div class="flex gap-3 mt-6">
+            <button
+              @click="closeNewTitleModal"
+              class="flex-1 py-2 px-4 bg-sand-3 hover:bg-sand-4 border border-sand-5 rounded-xl text-sand-12 font-medium transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              @click="addTranslationToExistingTitle"
+              :disabled="!selectedExistingTitle || !newTitleLocalized.trim()"
+              class="flex-1 py-2 px-4 bg-primary hover:bg-primary/90 disabled:bg-sand-4 disabled:cursor-not-allowed text-white rounded-xl font-medium transition-all"
+            >
+              Add Translation
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

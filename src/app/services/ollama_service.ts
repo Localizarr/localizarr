@@ -40,11 +40,15 @@ export class OllamaService {
       const res = await fetch(modelsUrl, { method: 'GET' })
 
       if (!res.ok) {
-        console.error('[OllamaService] Failed to list models from Ollama:', res.status, res.statusText)
+        console.error(
+          '[OllamaService] Failed to list models from Ollama:',
+          res.status,
+          res.statusText
+        )
         return null
       }
 
-      const data = await res.json() as any
+      const data = (await res.json()) as any
       if (!data.models || !Array.isArray(data.models) || data.models.length === 0) {
         console.error('[OllamaService] No models returned from Ollama')
         return null
@@ -54,15 +58,25 @@ export class OllamaService {
       console.log('[OllamaService] Available Ollama models:', modelNames)
 
       // If no model explicitly configured in env, set the first model to runtime config
-      if (!ollamaConfig.model || typeof ollamaConfig.model !== 'string' || ollamaConfig.model.trim() === '') {
+      if (
+        !ollamaConfig.model ||
+        typeof ollamaConfig.model !== 'string' ||
+        ollamaConfig.model.trim() === ''
+      ) {
         const firstModel = modelNames[0]
-        console.log('[OllamaService] No OLLAMA_MODEL configured. Using first available model:', firstModel)
+        console.log(
+          '[OllamaService] No OLLAMA_MODEL configured. Using first available model:',
+          firstModel
+        )
           ; (ollamaConfig as any).model = firstModel
       }
 
       return modelNames
     } catch (error: any) {
-      console.error('[OllamaService] Error connecting to Ollama to list models:', error?.message ?? error)
+      console.error(
+        '[OllamaService] Error connecting to Ollama to list models:',
+        error?.message ?? error
+      )
       return null
     }
   }
@@ -79,9 +93,11 @@ export class OllamaService {
       `- Type: ${metadata.titleType}`,
     ]
 
-    if (metadata.startYear) parts.push(`- Year: ${metadata.startYear}${metadata.endYear ? '-' + metadata.endYear : ''}`)
+    if (metadata.startYear)
+      parts.push(`- Year: ${metadata.startYear}${metadata.endYear ? '-' + metadata.endYear : ''}`)
     if (metadata.genres) parts.push(`- Genres: ${metadata.genres}`)
-    if (metadata.runtimeMinutes && metadata.runtimeMinutes !== '\\N') parts.push(`- Runtime: ${metadata.runtimeMinutes} min`)
+    if (metadata.runtimeMinutes && metadata.runtimeMinutes !== '\\N')
+      parts.push(`- Runtime: ${metadata.runtimeMinutes} min`)
 
     return parts.join('\n')
   }
@@ -171,9 +187,10 @@ Return ONLY: "ORIGINAL" or "TRANSLATION"`
           if (existingTitle.imdbData) {
             try {
               // Handle if it's already an object or a string
-              const rawData = typeof existingTitle.imdbData === 'string'
-                ? JSON.parse(existingTitle.imdbData)
-                : existingTitle.imdbData
+              const rawData =
+                typeof existingTitle.imdbData === 'string'
+                  ? JSON.parse(existingTitle.imdbData)
+                  : existingTitle.imdbData
 
               imdbMetadata = {
                 primaryTitle: rawData.primaryTitle,
@@ -181,7 +198,7 @@ Return ONLY: "ORIGINAL" or "TRANSLATION"`
                 startYear: rawData.startYear,
                 endYear: rawData.endYear,
                 runtimeMinutes: rawData.runtimeMinutes,
-                genres: rawData.genres
+                genres: rawData.genres,
               }
             } catch (e) {
               console.warn(`[OllamaService] Failed to parse IMDb data for ${imdbId}:`, e.message)
@@ -193,7 +210,7 @@ Return ONLY: "ORIGINAL" or "TRANSLATION"`
             originalTitle: existingTitle.originalTitle,
             availableLanguages,
             lastUpdated: existingTitle.updatedAt,
-            imdbMetadata
+            imdbMetadata,
           }
 
           // Check if cached data looks suspicious (original title appears to be a translation)
@@ -220,7 +237,9 @@ Return ONLY: "ORIGINAL" or "TRANSLATION"`
       // Fetch fresh data from Ollama
       return await this.fetchTitleInfoFromOllama(imdbId, executionLog)
     } catch (error) {
-      console.log(`[OllamaService] Database not available (this is normal in test environments): ${error.message}`)
+      console.log(
+        `[OllamaService] Database not available (this is normal in test environments): ${error.message}`
+      )
       // Fall back to fetching fresh data without cache
       return await this.fetchTitleInfoFromOllama(imdbId, executionLog)
     }
@@ -229,7 +248,10 @@ Return ONLY: "ORIGINAL" or "TRANSLATION"`
   /**
    * Fetch title information using Ollama AI model
    */
-  private static async fetchTitleInfoFromOllama(imdbId: string, executionLog?: any): Promise<OllamaTitleInfo | null> {
+  private static async fetchTitleInfoFromOllama(
+    imdbId: string,
+    executionLog?: any
+  ): Promise<OllamaTitleInfo | null> {
     try {
       console.log(`[OllamaService] Fetching title info from Ollama for ${imdbId}`)
 
@@ -257,7 +279,8 @@ Do NOT guess or make up titles. Return null for unknown IDs.`
         try {
           // Note: This might overwrite the analyzeSearchResults prompt if they happen in sequence,
           // but usually analyzeSearchResults calls getTitleInfo FIRST.
-          executionLog.llmPrompt = (executionLog.llmPrompt || '') + '\n\n[GET_TITLE_INFO_PROMPT]\n' + prompt
+          executionLog.llmPrompt =
+            (executionLog.llmPrompt || '') + '\n\n[GET_TITLE_INFO_PROMPT]\n' + prompt
           await executionLog.save()
         } catch (e) { }
       }
@@ -275,7 +298,8 @@ Do NOT guess or make up titles. Return null for unknown IDs.`
 
       if (executionLog) {
         try {
-          executionLog.llmResponse = (executionLog.llmResponse || '') + '\n\n[GET_TITLE_INFO_RESPONSE]\n' + content
+          executionLog.llmResponse =
+            (executionLog.llmResponse || '') + '\n\n[GET_TITLE_INFO_RESPONSE]\n' + content
           await executionLog.save()
         } catch (e) { }
       }
@@ -370,18 +394,12 @@ Do NOT guess or make up titles. Return null for unknown IDs.`
 
       // Check if it's a connection error to Ollama
       if (error.code === 'ECONNREFUSED' || error.message?.includes('ECONNREFUSED')) {
-        console.error(
-          `[OllamaService] Cannot connect to Ollama server at ${ollamaConfig.url}`
-        )
-        console.error(
-          '[OllamaService] Make sure Ollama is running: ollama serve'
-        )
+        console.error(`[OllamaService] Cannot connect to Ollama server at ${ollamaConfig.url}`)
+        console.error('[OllamaService] Make sure Ollama is running: ollama serve')
         console.error(
           `[OllamaService] Make sure the model '${ollamaConfig.model}' is available: ollama pull ${ollamaConfig.model}`
         )
-        console.error(
-          `[OllamaService] If connection fails, check OLLAMA_URL in your .env file`
-        )
+        console.error(`[OllamaService] If connection fails, check OLLAMA_URL in your .env file`)
       }
 
       return null
@@ -412,7 +430,9 @@ Do NOT guess or make up titles. Return null for unknown IDs.`
           await title.save()
           console.log(`[OllamaService] Updated empty title: ${titleInfo.imdbId}`)
         } else {
-          console.log(`[OllamaService] Title already has value, skipping update: ${titleInfo.imdbId}`)
+          console.log(
+            `[OllamaService] Title already has value, skipping update: ${titleInfo.imdbId}`
+          )
         }
       }
 
@@ -552,6 +572,13 @@ Do NOT guess or make up titles. Return null for unknown IDs.`
         realTitleInfo = await this.getTitleInfo(imdbId, executionLog)
 
         if (realTitleInfo) {
+          console.log(`[OllamaService] Real title info obtained:`, {
+            imdbId: realTitleInfo.imdbId,
+            originalTitle: realTitleInfo.originalTitle,
+            availableLanguages: realTitleInfo.availableLanguages,
+            lastUpdated: realTitleInfo.lastUpdated?.toISO(),
+            imdbMetadata: realTitleInfo.imdbMetadata,
+          })
           // Check if the cached title looks suspicious (only for inferred titles, not direct IMDb queries)
           const isFromDirectImdbQuery =
             realTitleInfo.imdbId &&
@@ -614,10 +641,16 @@ Do NOT guess or make up titles. Return null for unknown IDs.`
         ? this.formatImdbContextForLLM(realTitleInfo.imdbMetadata)
         : ''
 
+      console.log(`[OllamaService] IMDb context for prompt:`, {
+        hasImdbMetadata: !!realTitleInfo?.imdbMetadata,
+        imdbContextLength: imdbContext.length,
+        imdbContext: imdbContext || 'No IMDb metadata available',
+      })
+
       const prompt = `ANALYZE THESE SEARCH TITLES: Identify the ORIGINAL ENGLISH title and its TRANSLATIONS.
 ${imdbContext ? '\n' + imdbContext + '\n' : ''}
 ${imdbId ? `IMDb ID: ${imdbId}` : ''}
-${realTitleInfo && useCachedTitle ? `REAL ORIGINAL TITLE: "${realTitleInfo.originalTitle}"` : realTitleInfo && !useCachedTitle ? `WARNING: Cached title "${realTitleInfo.originalTitle}" appears to be incorrect. Find the correct English title from the search results.` : ''}
+${realTitleInfo && useCachedTitle ? `REAL OFFICIAL TITLE: "${realTitleInfo.originalTitle}"` : realTitleInfo && !useCachedTitle ? `WARNING: Cached title "${realTitleInfo.originalTitle}" appears to be incorrect. Find the correct English title from the search results.` : ''}
 
 SEARCH RESULTS TO ANALYZE:
 ${limitedSearchResults}

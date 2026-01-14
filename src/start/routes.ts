@@ -15,7 +15,10 @@ router.get('/__debug/publish-queue', async ({ request, response }) => {
     const { QUEUES } = await import('../queues.js')
     const q = QueueService.getInstance()
     await q.ensureStarted()
-    await q.publish(topic || QUEUES.PROCESS_TITLES_ASYNC, payload ? JSON.parse(payload) : { test: 'debug' })
+    await q.publish(
+      topic || QUEUES.PROCESS_TITLES_ASYNC,
+      payload ? JSON.parse(payload) : { test: 'debug' }
+    )
     return response.status(200).send({ ok: true, topic })
   } catch (error) {
     console.error('[DebugRoute] Error publishing to queue:', error)
@@ -27,7 +30,9 @@ router.get('/__debug/publish-queue', async ({ request, response }) => {
 router
   .group(() => {
     router.get('/titles', '#controllers/titles_controller.index')
+    router.post('/titles', '#controllers/titles_controller.store')
     router.get('/titles/:id/localized-names', '#controllers/titles_controller.localizedNames')
+    router.post('/titles/:id/localized-names', '#controllers/titles_controller.storeLocalizedName')
     router.delete('/titles/:id', '#controllers/titles_controller.destroy')
     router.delete(
       '/titles/:id/localized-names/:localizedNameId',

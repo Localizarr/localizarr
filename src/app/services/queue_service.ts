@@ -6,7 +6,8 @@ import { QUEUES } from '../../queues.js'
 
 export class QueueService {
   private static instance: QueueService
-  private subscribers: Map<string, (finish: () => Promise<void>, data: any) => Promise<void>> = new Map()
+  private subscribers: Map<string, (finish: () => Promise<void>, data: any) => Promise<void>> =
+    new Map()
   private intervalId: NodeJS.Timeout | null = null
   private processing = false
   private pollingLimit = 1
@@ -61,7 +62,9 @@ export class QueueService {
             if (executionLog) {
               console.log(`[Consumer] Successfully found execution log: ${executionLogId}`)
             } else {
-              console.warn(`[Consumer] Execution log NOT FOUND in database for ID: ${executionLogId}`)
+              console.warn(
+                `[Consumer] Execution log NOT FOUND in database for ID: ${executionLogId}`
+              )
             }
           } catch (e) {
             console.error(`[Consumer] Failed to fetch execution log ${executionLogId}`, e)
@@ -80,7 +83,12 @@ export class QueueService {
 
           // Process with LLM and store results
           console.log('[Consumer] Starting LLM processing and storage...')
-          await TitlesService.processSearchResultsWithLLM(responseData, 'pt-BR', imdbId, executionLog)
+          await TitlesService.processSearchResultsWithLLM(
+            responseData,
+            'pt-BR',
+            imdbId,
+            executionLog
+          )
           console.log('[Consumer] LLM processing and storage completed')
 
           // Apply the stored replacements
@@ -93,10 +101,13 @@ export class QueueService {
         // Finalize log if present
         if (executionLog) {
           try {
-            const bodyStr = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData)
-            executionLog.processedResponseBody = bodyStr.length > 50000 ? bodyStr.substring(0, 50000) + '...[TRUNCATED]' : bodyStr
+            const bodyStr =
+              typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData)
+            executionLog.processedResponseBody =
+              bodyStr.length > 50000 ? bodyStr.substring(0, 50000) + '...[TRUNCATED]' : bodyStr
             executionLog.status = 'completed'
-            executionLog.durationMs = (executionLog.durationMs || 0) + (Date.now() - startTimeConsumer)
+            executionLog.durationMs =
+              (executionLog.durationMs || 0) + (Date.now() - startTimeConsumer)
             await executionLog.save()
             console.log(`[Consumer] Finalized execution log ${executionLogId}`)
           } catch (e) {
@@ -130,7 +141,10 @@ export class QueueService {
     console.log('[Consumers] Initialized test queue consumers')
   }
 
-  public subscribe(topic: string, callback: (finish: () => Promise<void>, data: any) => Promise<void>): void {
+  public subscribe(
+    topic: string,
+    callback: (finish: () => Promise<void>, data: any) => Promise<void>
+  ): void {
     this.subscribers.set(topic, callback)
     console.log(`[QueueService] Subscribed to topic: ${topic}`)
   }
@@ -189,29 +203,37 @@ export class QueueService {
       const files = await fs.readdir(this.queueDir)
       console.log(`[QueueService] All files in queue dir: ${files.join(', ')}`)
 
-      const queueFiles = files.filter(f => {
-        const hasPending = f.includes('pending')
-        const endsWithJson = f.endsWith('.json')
-        const noFinished = !f.includes('finished')
-        const noFailed = !f.includes('failed')
-        const matches = hasPending && endsWithJson && noFinished && noFailed
-        console.log(`[QueueService] File ${f}: hasPending=${hasPending}, endsWithJson=${endsWithJson}, noFinished=${noFinished}, noFailed=${noFailed}, matches=${matches}`)
-        return matches
-      }).slice(0, this.pollingLimit)
+      const queueFiles = files
+        .filter((f) => {
+          const hasPending = f.includes('pending')
+          const endsWithJson = f.endsWith('.json')
+          const noFinished = !f.includes('finished')
+          const noFailed = !f.includes('failed')
+          const matches = hasPending && endsWithJson && noFinished && noFailed
+          console.log(
+            `[QueueService] File ${f}: hasPending=${hasPending}, endsWithJson=${endsWithJson}, noFinished=${noFinished}, noFailed=${noFailed}, matches=${matches}`
+          )
+          return matches
+        })
+        .slice(0, this.pollingLimit)
 
       console.log(`[QueueService] Filter check for each file:`)
-      files.forEach(f => {
+      files.forEach((f) => {
         const hasPending = f.includes('pending')
         const endsWithJson = f.endsWith('.json')
         const noFinished = !f.includes('finished')
         const noFailed = !f.includes('failed')
         const matches = hasPending && endsWithJson && noFinished && noFailed
         if (!matches) {
-          console.log(`  ${f}: hasPending=${hasPending}, endsWithJson=${endsWithJson}, noFinished=${noFinished}, noFailed=${noFailed}, matches=${matches}`)
+          console.log(
+            `  ${f}: hasPending=${hasPending}, endsWithJson=${endsWithJson}, noFinished=${noFinished}, noFailed=${noFailed}, matches=${matches}`
+          )
         }
       })
 
-      console.log(`[QueueService] Found ${queueFiles.length} pending queue files: ${queueFiles.join(', ')}`)
+      console.log(
+        `[QueueService] Found ${queueFiles.length} pending queue files: ${queueFiles.join(', ')}`
+      )
 
       console.log(`[QueueService] About to process ${queueFiles.length} files`)
       for (const file of queueFiles) {
@@ -234,7 +256,8 @@ export class QueueService {
         // The topic can contain '-', so we need to find the last two parts as timestamp and randomId
         const parts = topicWithId.split('-')
         console.log(`[QueueService] parts: ${parts}, parts.length: ${parts.length}`)
-        if (parts.length < 3) { // topic + timestamp + randomId minimum
+        if (parts.length < 3) {
+          // topic + timestamp + randomId minimum
           console.log(`[QueueService] Not enough parts in topicWithId for ${file}, skipping`)
           continue
         }
@@ -244,7 +267,9 @@ export class QueueService {
         const timestamp = parts[parts.length - 2]
         const topic = parts.slice(0, -2).join('-')
 
-        console.log(`[QueueService] Parsed - topic: ${topic}, timestamp: ${timestamp}, randomId: ${randomId}`)
+        console.log(
+          `[QueueService] Parsed - topic: ${topic}, timestamp: ${timestamp}, randomId: ${randomId}`
+        )
 
         console.log(`[QueueService] Processing file: ${file}, topic: ${topic}`)
 
@@ -265,7 +290,9 @@ export class QueueService {
             const finishedFilePath = path.join(this.queueDir, finishedFileName)
             console.log(`[QueueService] Renaming ${file} to ${finishedFileName}`)
             await fs.rename(filePath, finishedFilePath)
-            console.log(`[QueueService] Successfully renamed processed file ${file} to ${finishedFileName}`)
+            console.log(
+              `[QueueService] Successfully renamed processed file ${file} to ${finishedFileName}`
+            )
           }
 
           console.log(`[QueueService] Calling callback for ${file}`)

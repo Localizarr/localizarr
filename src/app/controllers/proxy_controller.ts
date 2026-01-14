@@ -12,7 +12,10 @@ import { inject } from '@adonisjs/core'
 
 @inject()
 export default class ProxyController {
-  constructor(private queueService: QueueService, private proxyRequestService: ProxyRequestService) { }
+  constructor(
+    private queueService: QueueService,
+    private proxyRequestService: ProxyRequestService
+  ) { }
   /**
    * Handle proxy requests to external services
    */
@@ -52,6 +55,12 @@ export default class ProxyController {
     console.log(`[ROUTE] Final URL to request: ${url}`)
     console.log('Proxying to:', url)
 
+    // Update execution log with target URL
+    if (executionLog) {
+      executionLog.targetUrl = url
+      await executionLog.save()
+    }
+
     try {
       // Prepare headers - remove host header, let axios set it
       const { host, ...headersToForward } = request.headers()
@@ -66,16 +75,24 @@ export default class ProxyController {
         }
       )
 
-      console.log(`[PROXY_CONTROLLER] Response source: ${proxyResponse.fromCache ? 'DATABASE_CACHE' : 'EXTERNAL_SERVER'}`)
+      console.log(
+        `[PROXY_CONTROLLER] Response source: ${proxyResponse.fromCache ? 'DATABASE_CACHE' : 'EXTERNAL_SERVER'}`
+      )
 
       // 2. Update Log with Original Response
       if (executionLog) {
         try {
-          const bodyStr = typeof proxyResponse.data === 'object' ? JSON.stringify(proxyResponse.data) : String(proxyResponse.data)
-          executionLog.originalResponseBody = bodyStr.length > 50000 ? bodyStr.substring(0, 50000) + '...[TRUNCATED]' : bodyStr
+          const bodyStr =
+            typeof proxyResponse.data === 'object'
+              ? JSON.stringify(proxyResponse.data)
+              : String(proxyResponse.data)
+          executionLog.originalResponseBody =
+            bodyStr.length > 50000 ? bodyStr.substring(0, 50000) + '...[TRUNCATED]' : bodyStr
           await executionLog.save()
           console.log(`[PROXY_CONTROLLER] Updated log ${executionLog.id} with original response`)
-        } catch (e) { console.error('Error logging original response', e) }
+        } catch (e) {
+          console.error('Error logging original response', e)
+        }
       }
 
       console.log('Proxy response status:', proxyResponse.status)
@@ -122,10 +139,15 @@ export default class ProxyController {
 
             let shouldProcessLLM = true
             if (cacheEntry) {
-              const secondsSinceLastProcess = now.diff(cacheEntry.lastProcessedAt, 'seconds').seconds
+              const secondsSinceLastProcess = now.diff(
+                cacheEntry.lastProcessedAt,
+                'seconds'
+              ).seconds
               if (secondsSinceLastProcess < llmCacheExpiry) {
                 const source = cacheEntry.imdbId ? `IMDb: ${cacheEntry.imdbId}` : `URL`
-                console.log(`[PROXY_CONTROLLER] skipping LLM processing (found cache via ${source}, TTL: ${llmCacheExpiry}s, elapsed: ${Math.round(secondsSinceLastProcess)}s)`)
+                console.log(
+                  `[PROXY_CONTROLLER] skipping LLM processing (found cache via ${source}, TTL: ${llmCacheExpiry}s, elapsed: ${Math.round(secondsSinceLastProcess)}s)`
+                )
                 shouldProcessLLM = false
               }
             }
@@ -138,7 +160,7 @@ export default class ProxyController {
                 await this.queueService.publish(QUEUES.PROCESS_TITLES_ASYNC, {
                   responseData,
                   imdbId,
-                  executionLogId: executionLog?.id
+                  executionLogId: executionLog?.id,
                 })
                 console.log('[ROUTE] Published to async queue')
 
@@ -146,7 +168,6 @@ export default class ProxyController {
                   executionLog.status = 'queued_async'
                   await executionLog.save()
                 }
-
               } else {
                 // Synchronous processing
                 console.log('[PROXY_CONTROLLER] USE_QUEUED_LLM=false, processing synchronously')
@@ -187,12 +208,16 @@ export default class ProxyController {
       // 3. Finalize Log (only if not queued - if queued, consumer finalizes it)
       if (executionLog && !titleProcessing.useQueuedLlm) {
         try {
-          const bodyStr = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData)
-          executionLog.processedResponseBody = bodyStr.length > 50000 ? bodyStr.substring(0, 50000) + '...[TRUNCATED]' : bodyStr
+          const bodyStr =
+            typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData)
+          executionLog.processedResponseBody =
+            bodyStr.length > 50000 ? bodyStr.substring(0, 50000) + '...[TRUNCATED]' : bodyStr
           executionLog.status = 'completed'
           executionLog.durationMs = Date.now() - startTime
           await executionLog.save()
-        } catch (e) { console.error('Error finalizing log', e) }
+        } catch (e) {
+          console.error('Error finalizing log', e)
+        }
       }
 
       response.send(responseData)
