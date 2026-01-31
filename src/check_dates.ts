@@ -1,6 +1,5 @@
 import 'reflect-metadata'
 import { Ignitor } from '@adonisjs/core'
-import { fileURLToPath } from 'node:url'
 import Title from './app/models/title.js'
 
 const APP_ROOT = new URL('../', import.meta.url)

@@ -163,3 +163,6 @@ yarn-error.log
 !src/queues/*.gitkeep
 src/queues/*.queued
 src/queues/*.finished
+.turbo/**
+src/data/*
+!src/data/.gitkeep

@@ -1,4 +1,3 @@
-import serverConfig from '#config/servers'
 import { TitlesService } from '../repositories/titles_service.js'
 import { titleProcessing } from '#config/app'
 import { QueueService } from '#services/queue_service'
@@ -9,6 +8,7 @@ import LlmCache from '#models/llm_cache'
 import { DateTime } from 'luxon'
 import type { HttpContext } from '@adonisjs/core/http'
 import { inject } from '@adonisjs/core'
+import { UrlParserService } from '#services/url_parser_service'
 
 @inject()
 export default class ProxyController {
@@ -29,6 +29,9 @@ export default class ProxyController {
     let executionLog = new ExecutionLog()
     try {
       executionLog.routeUrl = request.url()
+      executionLog.method = request.method()
+      const requestBody = request.body()
+      executionLog.requestBody = requestBody && Object.keys(requestBody).length > 0 ? JSON.stringify(requestBody) : null
       executionLog.indexerName = domain
       executionLog.searchQuery = query
       executionLog.status = 'processing'
@@ -48,9 +51,19 @@ export default class ProxyController {
       console.log(`[ROUTE] Extracted IMDb ID: ${imdbId}`)
     }
 
-    // Fix double slash issue - ensure path doesn't start with /
-    const cleanPath = path.startsWith('/') ? path.slice(1) : path
-    const url = `${serverConfig.proxyProtocol}://${domain}/${cleanPath}${query && Object.keys(query).length > 0 ? '?' + new URLSearchParams(query).toString() : ''}`
+    // Build target URL using UrlParserService
+    const url = UrlParserService.buildProxyUrl(domain, path, query)
+
+    // ========== PROXY REQUEST DEBUGGING ==========
+    console.log('='.repeat(60))
+    console.log('🚀 PROXY REQUEST - TARGET URL:')
+    console.log(`   Method: ${request.method()}`)
+    console.log(`   Domain: ${domain}`)
+    console.log(`   Path: ${path}`)
+    console.log(`   Query:`, query)
+    console.log(`   Final URL: ${url}`)
+    console.log('='.repeat(60))
+    // =============================================
 
     console.log(`[ROUTE] Final URL to request: ${url}`)
     console.log('Proxying to:', url)
@@ -67,11 +80,13 @@ export default class ProxyController {
 
       const proxyResponse = await this.proxyRequestService.proxyRequest(
         url,
-        request.method(),
-        request.body(),
         {
-          ...headersToForward,
-          host: domain, // Override host header for the target domain
+          method: request.method(),
+          data: request.body(),
+          headers: {
+            ...headersToForward,
+            host: domain, // Override host header for the target domain
+          },
         }
       )
 

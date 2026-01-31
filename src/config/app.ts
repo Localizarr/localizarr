@@ -66,6 +66,13 @@ export const indexerCache = {
 }
 
 /**
+ * Stream/heartbeat configuration
+ */
+export const streamConfig = {
+  heartbeatTimeoutMs: env.get('STREAM_HEARTBEAT_TIMEOUT_MS', 60000), // Default 60 seconds
+}
+
+/**
  * Ollama AI configuration
  */
 const ollamaUrl = env.get('OLLAMA_URL', 'http://localhost:11434')

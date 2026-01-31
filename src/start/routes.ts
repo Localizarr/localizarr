@@ -3,6 +3,7 @@ import ProxyController from '#controllers/proxy_controller'
 
 router.get('/', '#controllers/titles_controller.index')
 router.get('/logs', '#controllers/logs_controller.index')
+router.post('/logs/:id/replay', '#controllers/logs_controller.replay')
 
 // Proxy route to act like UmlautAdaptarr
 router.any('/_/:domain/*', [ProxyController, 'handleProxyRequest'])

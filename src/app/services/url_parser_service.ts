@@ -5,6 +5,13 @@ export interface ParsedUrlParams {
   mediaType?: 'movie' | 'tv'
 }
 
+export interface ParsedProxyUrl {
+  domain: string
+  path: string
+  query: Record<string, any>
+  fullUrl: string
+}
+
 export class UrlParserService {
   /**
    * Parse URL parameters from Torrentio-style requests
@@ -60,5 +67,79 @@ export class UrlParserService {
 
     // Default: try Torrentio parsing as fallback
     return this.parseTorrentioUrl(path)
+  }
+
+  /**
+   * Parse a proxy route URL (format: /_/domain.com/path?query=1)
+   * into its components
+   */
+  static parseProxyRoute(routeUrl: string): ParsedProxyUrl {
+    if (!routeUrl.startsWith('/_/')) {
+      throw new Error('Invalid proxy route URL format')
+    }
+
+    const urlParts = routeUrl.substring(3).split('?') // Remove /_/ and split query
+    const pathAndDomain = urlParts[0]
+    const queryString = urlParts[1] || ''
+
+    const pathParts = pathAndDomain.split('/')
+    const domain = pathParts[0]
+    const path = pathParts.slice(1).join('/')
+
+    const query = queryString ? Object.fromEntries(new URLSearchParams(queryString)) : {}
+
+    // Fix double slash issue - ensure path doesn't start with /
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path
+    const fullUrl = `${this.getProxyProtocol()}://${domain}/${cleanPath}${
+      queryString ? '?' + queryString : ''
+    }`
+
+    return {
+      domain,
+      path: cleanPath,
+      query,
+      fullUrl,
+    }
+  }
+
+  /**
+   * Build a proxy URL from components
+   */
+  static buildProxyUrl(domain: string, path: string, query?: Record<string, any>): string {
+    const cleanPath = path.startsWith('/') ? path.slice(1) : path
+    const queryString = query && Object.keys(query).length > 0
+      ? '?' + new URLSearchParams(query).toString()
+      : ''
+
+    return `${this.getProxyProtocol()}://${domain}/${cleanPath}${queryString}`
+  }
+
+  /**
+   * Extract IMDb ID from a path if present
+   */
+  static extractImdbId(path: string): string | undefined {
+    const imdbMatch = path.match(/tt\d+/)
+    return imdbMatch ? imdbMatch[0] : undefined
+  }
+
+  /**
+   * Validate if a URL is a valid proxy target
+   */
+  static isValidProxyUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url)
+      return ['http:', 'https:'].includes(parsed.protocol)
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Get proxy protocol from config
+   */
+  private static getProxyProtocol(): string {
+    // Import here to avoid circular dependencies
+    const serverConfig = require('#config/servers').default
+    return serverConfig.proxyProtocol
   }
 }

@@ -84,7 +84,7 @@ export class ProxyService {
         this.logger.warn('Falha na autenticação do proxy')
         socket.write(
           'HTTP/1.1 407 Proxy Authentication Required\r\n' +
-            'Proxy-Authenticate: Basic realm="Proxy"\r\n\r\n'
+          'Proxy-Authenticate: Basic realm="Proxy"\r\n\r\n'
         )
         socket.end()
         return
@@ -193,6 +193,15 @@ export class ProxyService {
           ...Object.fromEntries(headers),
         },
       }
+
+      // ========== LOCAL SERVER REQUEST DEBUGGING ==========
+      this.logger.info('🏠 LOCAL SERVER REQUEST - FORWARDING TO ADONIS:')
+      this.logger.info(`   Original URL: ${url}`)
+      this.logger.info(`   Modified URL: ${modifiedUrl}`)
+      this.logger.info(`   Method: ${method}`)
+      this.logger.info(`   Route: /_/${host}${uri.pathname}${uri.search}`)
+      this.logger.info('='.repeat(55))
+      // ====================================================
 
       this.logger.debug(`Enviando requisição para o servidor local`)
       const req = http.request(modifiedUrl, options, (res) => {

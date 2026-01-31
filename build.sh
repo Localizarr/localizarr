@@ -6,24 +6,22 @@
 
 set -e
 
-IMAGE_NAME="vinicioslc/localizarr"
-TAG="latest"
 
 echo "Building Localizarr Docker image..."
 
 # Build the Docker image from src directory
 cd src
-docker build -t ${IMAGE_NAME}:${TAG} .
+docker build -t vinicioslc/localizarr:latest .
 
-echo "Successfully built and tagged image: ${IMAGE_NAME}:${TAG}"
+echo "Successfully built and tagged image: vinicioslc/localizarr:latest"
 
 # Show image info
 echo "Image details:"
-docker images ${IMAGE_NAME}:${TAG}
+docker images vinicioslc/localizarr:latest
 
 # Optional push
 if [ "$1" = "push" ]; then
     echo "Pushing image to Docker Hub..."
-    docker push ${IMAGE_NAME}:${TAG}
-    echo "Successfully pushed ${IMAGE_NAME}:${TAG}"
+    docker push vinicioslc/localizarr:latest
+    echo "Successfully pushed vinicioslc/localizarr:latest"
 fi

@@ -46,6 +46,13 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   /*
   |----------------------------------------------------------
+  | Stream/Heartbeat Configuration
+  |----------------------------------------------------------
+  */
+  STREAM_HEARTBEAT_TIMEOUT_MS: Env.schema.number.optional(),
+
+  /*
+  |----------------------------------------------------------
   | Variables for configuring session package
   |----------------------------------------------------------
   */

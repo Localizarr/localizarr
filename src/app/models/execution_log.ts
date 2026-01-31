@@ -12,6 +12,12 @@ export default class ExecutionLog extends BaseModel {
   declare targetUrl: string | null
 
   @column()
+  declare method: string | null
+
+  @column()
+  declare requestBody: string | null
+
+  @column()
   declare indexerName: string | null
 
   @column()

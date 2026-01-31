@@ -89,20 +89,186 @@ const getStatusColor = (status: string) => {
   }
 }
 
-const getVisiblePages = () => {
-  const current = props.logs.meta.current_page
-  const total = props.logs.meta.last_page
-  const pages = []
+const replay = async (logId: number) => {
+  if (!confirm('Are you sure you want to replay this request? This will create a new log entry.')) {
+    return
+  }
 
-  // Show max 5 pages around current
-  const start = Math.max(1, current - 2)
-  const end = Math.min(total, current + 2)
+  try {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    const response = await fetch(`/logs/${logId}/replay`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken || '',
+      },
+    })
+
+    if (response.ok) {
+      // Reload the page or update the list
+      window.location.reload()
+    } else {
+      alert('Replay failed')
+    }
+  } catch (error) {
+    console.error('Replay error:', error)
+    alert('Replay failed')
+  }
+}
+
+const getVisiblePages = () => {
+  const pages: number[] = []
+  const start = Math.max(1, props.logs.meta.current_page - 2)
+  const end = Math.min(props.logs.meta.last_page, props.logs.meta.current_page + 2)
 
   for (let i = start; i <= end; i++) {
     pages.push(i)
   }
 
   return pages
+}
+
+// Diff functionality
+const computeJsonDiff = (original: string, processed: string) => {
+  if (!original || !processed || original === processed) {
+    return null
+  }
+
+  try {
+    const originalObj = JSON.parse(original)
+    const processedObj = JSON.parse(processed)
+
+    // Simple diff: compare stringified versions line by line
+    const originalLines = JSON.stringify(originalObj, null, 2).split('\n')
+    const processedLines = JSON.stringify(processedObj, null, 2).split('\n')
+
+    const maxLines = Math.max(originalLines.length, processedLines.length)
+    const diffLines: string[] = []
+
+    for (let i = 0; i < maxLines; i++) {
+      const origLine = originalLines[i] || ''
+      const procLine = processedLines[i] || ''
+
+      if (origLine === procLine) {
+        // Same line
+        diffLines.push(`<span class="text-sand-11">${escapeHtml(origLine)}</span>`)
+      } else if (origLine && !procLine) {
+        // Line removed
+        diffLines.push(`<span class="bg-red-900/30 text-red-200 border-l-2 border-red-500 pl-2">${escapeHtml(origLine)}</span>`)
+      } else if (!origLine && procLine) {
+        // Line added
+        diffLines.push(`<span class="bg-green-900/30 text-green-200 border-l-2 border-green-500 pl-2">${escapeHtml(procLine)}</span>`)
+      } else {
+        // Line changed
+        diffLines.push(`<span class="bg-yellow-900/30 text-yellow-200 border-l-2 border-yellow-500 pl-2">${escapeHtml(procLine)}</span>`)
+      }
+    }
+
+    return diffLines.join('\n')
+  } catch (e) {
+    // Fallback to simple text diff if JSON parsing fails
+    return computeTextDiff(original, processed)
+  }
+}
+
+const computeTextDiff = (original: string, processed: string) => {
+  if (original === processed) return null
+
+  const originalLines = original.split('\n')
+  const processedLines = processed.split('\n')
+  const maxLines = Math.max(originalLines.length, processedLines.length)
+  const diffLines: string[] = []
+
+  for (let i = 0; i < maxLines; i++) {
+    const origLine = originalLines[i] || ''
+    const procLine = processedLines[i] || ''
+
+    if (origLine === procLine) {
+      diffLines.push(`<span class="text-sand-11">${escapeHtml(origLine)}</span>`)
+    } else if (origLine && !procLine) {
+      diffLines.push(`<span class="bg-red-900/30 text-red-200 border-l-2 border-red-500 pl-2">${escapeHtml(origLine)}</span>`)
+    } else if (!origLine && procLine) {
+      diffLines.push(`<span class="bg-green-900/30 text-green-200 border-l-2 border-green-500 pl-2">${escapeHtml(procLine)}</span>`)
+    } else {
+      diffLines.push(`<span class="bg-yellow-900/30 text-yellow-200 border-l-2 border-yellow-500 pl-2">${escapeHtml(procLine)}</span>`)
+    }
+  }
+
+  return diffLines.join('\n')
+}
+
+const computeProcessedDiff = (original: string, processed: string) => {
+  if (!original || !processed || original === processed) {
+    return null
+  }
+
+  try {
+    const originalObj = JSON.parse(original)
+    const processedObj = JSON.parse(processed)
+
+    // Simple diff: compare stringified versions line by line
+    const originalLines = JSON.stringify(originalObj, null, 2).split('\n')
+    const processedLines = JSON.stringify(processedObj, null, 2).split('\n')
+
+    const maxLines = Math.max(originalLines.length, processedLines.length)
+    const diffLines: string[] = []
+
+    for (let i = 0; i < maxLines; i++) {
+      const origLine = originalLines[i] || ''
+      const procLine = processedLines[i] || ''
+
+      if (origLine === procLine) {
+        // Same line - show in green to indicate it's the final result
+        diffLines.push(`<span class="text-green-200">${escapeHtml(origLine)}</span>`)
+      } else if (origLine && !procLine) {
+        // Line was removed - don't show (not in final result)
+        continue
+      } else if (!origLine && procLine) {
+        // Line was added - show in bright green
+        diffLines.push(`<span class="text-green-100 font-semibold">${escapeHtml(procLine)}</span>`)
+      } else {
+        // Line was changed - show the new version in bright green
+        diffLines.push(`<span class="text-green-100 font-semibold">${escapeHtml(procLine)}</span>`)
+      }
+    }
+
+    return diffLines.join('\n')
+  } catch (e) {
+    // Fallback to simple text diff if JSON parsing fails
+    return computeProcessedTextDiff(original, processed)
+  }
+}
+
+const computeProcessedTextDiff = (original: string, processed: string) => {
+  if (original === processed) return null
+
+  const originalLines = original.split('\n')
+  const processedLines = processed.split('\n')
+  const maxLines = Math.max(originalLines.length, processedLines.length)
+  const diffLines: string[] = []
+
+  for (let i = 0; i < maxLines; i++) {
+    const origLine = originalLines[i] || ''
+    const procLine = processedLines[i] || ''
+
+    if (origLine === procLine) {
+      diffLines.push(`<span class="text-green-200">${escapeHtml(origLine)}</span>`)
+    } else if (origLine && !procLine) {
+      // Line was removed - skip
+      continue
+    } else if (!origLine && procLine) {
+      diffLines.push(`<span class="text-green-100 font-semibold">${escapeHtml(procLine)}</span>`)
+    } else {
+      diffLines.push(`<span class="text-green-100 font-semibold">${escapeHtml(procLine)}</span>`)
+    }
+  }
+
+  return diffLines.join('\n')
+}
+
+const hasDiff = (log: ExecutionLog) => {
+  return log.originalResponseBody && log.processedResponseBody &&
+         log.originalResponseBody !== log.processedResponseBody
 }
 </script>
 
@@ -182,12 +348,20 @@ const getVisiblePages = () => {
                     {{ log.durationMs ? log.durationMs + 'ms' : '-' }}
                   </td>
                   <td class="px-6 py-4">
-                    <button
-                      @click="toggleExpanded(log.id)"
-                      class="px-3 py-1.5 border border-sand-5 rounded-lg text-xs font-medium hover:bg-primary hover:text-white hover:border-primary transition-colors"
-                    >
-                      {{ isExpanded(log.id) ? 'Collapse' : 'Details' }}
-                    </button>
+                    <div class="flex gap-2">
+                      <button
+                        @click="toggleExpanded(log.id)"
+                        class="px-3 py-1.5 border border-sand-5 rounded-lg text-xs font-medium hover:bg-primary hover:text-white hover:border-primary transition-colors"
+                      >
+                        {{ isExpanded(log.id) ? 'Collapse' : 'Details' }}
+                      </button>
+                      <button
+                        @click="replay(log.id)"
+                        class="px-3 py-1.5 bg-blue-600 border border-blue-500 rounded-lg text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                      >
+                        Replay
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 <!-- Details Row -->
@@ -247,23 +421,25 @@ const getVisiblePages = () => {
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <h4 class="text-xs font-bold uppercase tracking-wider text-sand-9 mb-2">
-                          Original Response (Truncated)
+                          Original Response (Truncated) - Changes Highlighted
                         </h4>
                         <div
-                          class="bg-sand-2 p-4 rounded-xl border border-sand-4 font-mono text-xs overflow-auto max-h-60 whitespace-pre-wrap"
+                          class="bg-sand-2 p-4 rounded-xl border border-sand-4 font-mono text-xs overflow-auto max-h-60"
                         >
-                          {{ log.originalResponseBody || 'None' }}
+                          <div v-if="hasDiff(log)" v-html="computeJsonDiff(log.originalResponseBody, log.processedResponseBody)"></div>
+                          <div v-else class="whitespace-pre-wrap">{{ log.originalResponseBody || 'None' }}</div>
                         </div>
                       </div>
 
                       <div>
                         <h4 class="text-xs font-bold uppercase tracking-wider text-sand-9 mb-2">
-                          Processed Response (Truncated)
+                          Processed Response (Truncated) - Final Result
                         </h4>
                         <div
-                          class="bg-sand-2 p-4 rounded-xl border border-sand-4 font-mono text-xs overflow-auto max-h-60 whitespace-pre-wrap"
+                          class="bg-sand-2 p-4 rounded-xl border border-sand-4 font-mono text-xs overflow-auto max-h-60"
                         >
-                          {{ log.processedResponseBody || 'None' }}
+                          <div v-if="hasDiff(log)" v-html="computeProcessedDiff(log.originalResponseBody, log.processedResponseBody)"></div>
+                          <div v-else class="whitespace-pre-wrap">{{ log.processedResponseBody || 'None' }}</div>
                         </div>
                       </div>
                     </div>

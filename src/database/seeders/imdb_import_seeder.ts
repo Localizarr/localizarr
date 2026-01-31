@@ -19,7 +19,7 @@ export default class extends BaseSeeder {
 
     // Verificar se já existem títulos suficientes
     const titleCount = await Title.query().count('* as total')
-    const count = titleCount[0].total
+    const count = titleCount[0].$extras.total
 
     console.log(`📊 Títulos existentes no banco: ${count}`)
 
