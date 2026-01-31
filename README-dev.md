@@ -66,6 +66,60 @@ npm run lint         # Run ESLint
 npm run format       # Format code with Prettier
 ```
 
+## 🎬 IMDb Titles Import
+
+Localizarr uses IMDb title data for movie/TV show identification and localization. The system provides several commands to manage title data:
+
+### Import Commands
+
+```bash
+# Import titles (only if database is empty)
+npm run import:titles
+
+# Force re-import titles (deletes existing data first)
+npm run import:titles:force
+
+# Or use ace commands directly
+node ace import:titles
+node ace import:titles:force --confirm
+```
+
+### Force Import Interactive Options
+
+When running `import:titles:force`, the command will ask two questions:
+
+1. **Data Deletion Confirmation**: Confirms you want to delete all existing titles
+2. **Fresh TSV Download**: Asks if you want to download a fresh TSV file from IMDb
+
+```bash
+# Skip all confirmations (dangerous - use with caution)
+node ace import:titles:force --confirm
+
+# Interactive mode (recommended)
+node ace import:titles:force
+```
+
+### What the Import Does
+
+1. **Downloads** the latest `title.basics.tsv.gz` file from IMDb datasets (~1.2GB compressed)
+2. **Extracts** and processes the TSV data
+3. **Imports** movie and TV show titles into the SQLite database
+4. **Optimizes** the data for fast lookups during proxy requests
+
+### Import Behavior
+
+- `import:titles`: Safe import - only runs if database has fewer than 5 titles
+- `import:titles:force`: Dangerous - deletes all existing titles before importing fresh data
+- The import process can take 10-30 minutes depending on your hardware
+- Progress is displayed during download and processing phases
+
+### Data Source
+
+- **URL**: <https://datasets.imdbws.com/title.basics.tsv.gz>
+- **Size**: ~1.2GB compressed, ~4GB uncompressed
+- **Update Frequency**: IMDb updates this dataset regularly
+- **Storage**: Downloaded to `tmp/title.basics.tsv.gz`
+
 ## 📁 Project Structure
 
 ```

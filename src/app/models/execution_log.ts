@@ -21,6 +21,9 @@ export default class ExecutionLog extends BaseModel {
   declare indexerName: string | null
 
   @column()
+  declare hostHeader: string | null
+
+  @column()
   declare searchQuery: any | null
 
   @column()
@@ -40,6 +43,9 @@ export default class ExecutionLog extends BaseModel {
 
   @column()
   declare llmResponse: string | null
+
+  @column()
+  declare titleMappings: any | null
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

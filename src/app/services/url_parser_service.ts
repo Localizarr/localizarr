@@ -73,7 +73,7 @@ export class UrlParserService {
    * Parse a proxy route URL (format: /_/domain.com/path?query=1)
    * into its components
    */
-  static parseProxyRoute(routeUrl: string): ParsedProxyUrl {
+  static async parseProxyRoute(routeUrl: string): Promise<ParsedProxyUrl> {
     if (!routeUrl.startsWith('/_/')) {
       throw new Error('Invalid proxy route URL format')
     }
@@ -90,9 +90,8 @@ export class UrlParserService {
 
     // Fix double slash issue - ensure path doesn't start with /
     const cleanPath = path.startsWith('/') ? path.slice(1) : path
-    const fullUrl = `${this.getProxyProtocol()}://${domain}/${cleanPath}${
-      queryString ? '?' + queryString : ''
-    }`
+    const protocol = await this.getProxyProtocol()
+    const fullUrl = `${protocol}://${domain}/${cleanPath}${queryString ? '?' + queryString : ''}`
 
     return {
       domain,
@@ -105,13 +104,14 @@ export class UrlParserService {
   /**
    * Build a proxy URL from components
    */
-  static buildProxyUrl(domain: string, path: string, query?: Record<string, any>): string {
+  static async buildProxyUrl(domain: string, path: string, query?: Record<string, any>): Promise<string> {
     const cleanPath = path.startsWith('/') ? path.slice(1) : path
     const queryString = query && Object.keys(query).length > 0
       ? '?' + new URLSearchParams(query).toString()
       : ''
 
-    return `${this.getProxyProtocol()}://${domain}/${cleanPath}${queryString}`
+    const protocol = await this.getProxyProtocol()
+    return `${protocol}://${domain}/${cleanPath}${queryString}`
   }
 
   /**
@@ -137,9 +137,9 @@ export class UrlParserService {
   /**
    * Get proxy protocol from config
    */
-  private static getProxyProtocol(): string {
+  private static async getProxyProtocol(): Promise<string> {
     // Import here to avoid circular dependencies
-    const serverConfig = require('#config/servers').default
+    const { default: serverConfig } = await import('#config/servers')
     return serverConfig.proxyProtocol
   }
 }

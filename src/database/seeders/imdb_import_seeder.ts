@@ -42,10 +42,13 @@ export default class extends BaseSeeder {
   private async downloadFileIfNotExists() {
     if (fs.existsSync(this.filePath)) {
       console.log('📁 Arquivo já existe, pulando download...')
+      console.log(`📂 Localização: ${this.filePath}`)
       return
     }
 
     console.log('📥 Baixando arquivo do IMDb...')
+    console.log(`📂 Destino: ${this.filePath}`)
+    console.log(`🌐 URL: ${this.url}`)
 
     // Garantir que o diretório tmp existe
     const tmpDir = path.dirname(this.filePath)
@@ -83,6 +86,7 @@ export default class extends BaseSeeder {
 
   private async processAndImport() {
     console.log('🔄 Processando arquivo TSV...')
+    console.log(`📂 Arquivo: ${this.filePath}`)
 
     let batch: any[] = []
     let totalProcessed = 0

@@ -14,7 +14,7 @@ export interface LogContext {
 
 @inject()
 export class ProxyLoggerService {
-  constructor(private logger: Logger) {}
+  constructor(private logger: Logger) { }
 
   /**
    * Log proxy request initiation

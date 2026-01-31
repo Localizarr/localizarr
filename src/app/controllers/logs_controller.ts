@@ -4,10 +4,9 @@ import serverConfig from '#config/servers'
 import { TitlesService } from '../repositories/titles_service.js'
 import { titleProcessing } from '#config/app'
 import { QueueService } from '#services/queue_service'
-import { ProxyRequestService } from '#services/proxy_request_service'
 import { QUEUES } from '../../queues.js'
+import { ProxyRequestService } from '#services/proxy_request_service'
 import { inject } from '@adonisjs/core'
-import { UrlParserService } from '#services/url_parser_service'
 
 @inject()
 export default class LogsController {
@@ -18,9 +17,9 @@ export default class LogsController {
 
   async index({ inertia, request }: HttpContext) {
     const page = request.input('page', 1)
-    const limit = 20
+    const limit = Math.min(Math.max(request.input('limit', 20), 10), 100) // Min 10, max 100, default 20
 
-    const logs = await ExecutionLog.query().orderBy('createdAt', 'desc').paginate(page, limit)
+    const logs = await ExecutionLog.query().orderBy('created_at', 'desc').paginate(page, limit)
 
     const serializedLogs = logs.serialize()
     console.log(`[LogsController] Page: ${page}, Limit: ${limit}`)
@@ -58,16 +57,17 @@ export default class LogsController {
     const query = queryString ? Object.fromEntries(new URLSearchParams(queryString)) : {}
 
     console.log(`[REPLAY] Domain: ${domain}, Path: ${path}, Query:`, query)
-    console.log(`[REPLAY] Original method: ${log.method}, Request body:`, log.requestBody ? 'present' : 'none')
 
     // Extract IMDb ID if present
-    let imdbId: string | undefined = UrlParserService.extractImdbId(path)
+    let imdbId: string | undefined
+    const imdbMatch = path.match(/tt\d+/)
+    if (imdbMatch) {
+      imdbId = imdbMatch[0]
+    }
 
     // Create new execution log for replay
     let replayLog = new ExecutionLog()
     replayLog.routeUrl = routeUrl
-    replayLog.method = log.method // Copy the original method
-    replayLog.requestBody = log.requestBody // Copy the original request body
     replayLog.indexerName = domain
     replayLog.searchQuery = query
     replayLog.status = 'processing'
@@ -81,27 +81,13 @@ export default class LogsController {
     await replayLog.save()
 
     try {
-      // Parse request body if it exists
-      let requestBody = null
-      if (log.requestBody) {
-        try {
-          requestBody = JSON.parse(log.requestBody)
-        } catch (e) {
-          console.warn('[REPLAY] Failed to parse saved request body, using as string')
-          requestBody = log.requestBody
-        }
-      }
-
       // Simulate proxy request
-      console.log(`[REPLAY] Executing proxy request: ${log.method || 'GET'} ${targetUrl}`)
-      if (requestBody) {
-        console.log(`[REPLAY] Request body:`, requestBody)
-      }
-      const proxyResponse = await this.proxyRequestService.proxyRequest(targetUrl, {
-        method: log.method || 'GET',
-        data: requestBody,
-        headers: { host: domain }
-      })
+      const proxyResponse = await this.proxyRequestService.proxyRequest(
+        targetUrl,
+        'GET', // Assume GET for replay
+        null,
+        { host: domain }
+      )
 
       // Log original response
       const bodyStr = typeof proxyResponse.data === 'object' ? JSON.stringify(proxyResponse.data) : String(proxyResponse.data)

@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit",
     "reset:db": "node ace migration:rollback && node ace migration:run",
     "migr": "node ace migration:run --force",
-    "seed": "node ace db:seed"
+    "seed": "node ace db:seed",
+    "import:titles": "node ace import:titles",
+    "import:titles:force": "node ace import:titles:force"
   },
   "imports": {
     "#controllers/*": "./app/controllers/*.js",

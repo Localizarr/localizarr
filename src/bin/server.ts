@@ -48,6 +48,19 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
         throw error
       }
 
+      // Run IMDb titles seeder if needed
+      console.log('Checking IMDb titles data...')
+      try {
+        execSync('node ace import:titles', {
+          stdio: 'inherit',
+          cwd: APP_ROOT.pathname,
+        })
+        console.log('IMDb titles data check completed')
+      } catch (error) {
+        console.error('Failed to check IMDb titles data:', error)
+        // Don't throw error here - titles are not critical for server startup
+      }
+
       // Check Ollama connectivity if enabled
       const { titleProcessing } = await import('#config/app')
       if (titleProcessing.enableOllamaProcessing) {
@@ -56,11 +69,11 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
           const models = await OllamaService.checkAvailableModels()
           if (!models) {
             console.error('[Startup] Ollama models could not be listed; disabling LLM processing')
-            ;(titleProcessing as any).enableOllamaProcessing = false
+            titleProcessing!.enableOllamaProcessing = false
           }
         } catch (err) {
           console.error('[Startup] Error during Ollama check:', err)
-          ;(titleProcessing as any).enableOllamaProcessing = false
+          titleProcessing!.enableOllamaProcessing = false
         }
       }
       // Queue processing is now initialized lazily in the controller

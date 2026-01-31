@@ -57,6 +57,10 @@ const searchResults = ref<Title[]>([]);
 const selectedExistingTitle = ref<Title | null>(null);
 const newTitleLangId = ref("pt-BR");
 const newTitleLocalized = ref("");
+const isSearchingTitles = ref(false);
+
+// Test URL redirect
+const testUrl = ref("");
 
 // Debounced Search Watcher
 let searchTimeout: NodeJS.Timeout;
@@ -125,7 +129,7 @@ const clearAllLocalizedNames = () => {
 };
 
 const registerTitle = (titleId: number) => {
-  const title = props.titles.data.find(t => t.id === titleId);
+  const title = props.titles.data.find((t) => t.id === titleId);
   if (title) {
     selectedTitleForAdd.value = title;
     newLocalizedName.value = "";
@@ -137,23 +141,50 @@ const registerTitle = (titleId: number) => {
 const addLocalizedName = () => {
   if (!selectedTitleForAdd.value || !newLocalizedName.value.trim()) return;
 
-  router.post(`/api/titles/${selectedTitleForAdd.value.id}/localized-names`, {
-    localizedName: newLocalizedName.value.trim(),
-    langId: newLangId.value,
-  }, {
-    preserveScroll: true,
-    onSuccess: () => {
-      showAddModal.value = false;
-      selectedTitleForAdd.value = null;
-      newLocalizedName.value = "";
+  router.post(
+    `/api/titles/${selectedTitleForAdd.value.id}/localized-names`,
+    {
+      localizedName: newLocalizedName.value.trim(),
+      langId: newLangId.value,
     },
-  });
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        showAddModal.value = false;
+        selectedTitleForAdd.value = null;
+        newLocalizedName.value = "";
+      },
+    }
+  );
 };
 
 const closeAddModal = () => {
   showAddModal.value = false;
   selectedTitleForAdd.value = null;
   newLocalizedName.value = "";
+};
+
+const testProxy = () => {
+  if (!testUrl.value.trim()) return;
+
+  fetch("/test-proxy", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ url: testUrl.value.trim() }),
+  })
+    .then((response) => response.text())
+    .then((data) => {
+      const newWindow = window.open("", "_blank");
+      if (newWindow) {
+        newWindow.document.write("<pre>" + data + "</pre>");
+        newWindow.document.close();
+      }
+    })
+    .catch((error) => {
+      alert("Error: " + error.message);
+    });
 };
 
 const openNewTitleModal = () => {
@@ -167,6 +198,7 @@ const closeNewTitleModal = () => {
   selectedExistingTitle.value = null;
   newTitleLangId.value = "pt-BR";
   newTitleLocalized.value = "";
+  isSearchingTitles.value = false;
   if (titleSearchTimeout) {
     clearTimeout(titleSearchTimeout);
   }
@@ -180,17 +212,24 @@ const searchTitles = async () => {
   titleSearchTimeout = setTimeout(async () => {
     if (!titleSearchQuery.value.trim()) {
       searchResults.value = [];
+      isSearchingTitles.value = false;
       return;
     }
 
+    isSearchingTitles.value = true;
     try {
-      const response = await fetch(`/api/titles?search=${encodeURIComponent(titleSearchQuery.value)}&limit=10`);
+      const response = await fetch(
+        `/api/titles?search=${encodeURIComponent(titleSearchQuery.value)}&limit=10`
+      );
       const data = await response.json();
       if (data.success) {
         searchResults.value = data.data.data;
       }
     } catch (error) {
-      console.error('Error searching titles:', error);
+      console.error("Error searching titles:", error);
+      searchResults.value = [];
+    } finally {
+      isSearchingTitles.value = false;
     }
   }, 300); // 300ms debounce
 };
@@ -204,15 +243,19 @@ const selectTitle = (title: Title) => {
 const addTranslationToExistingTitle = () => {
   if (!selectedExistingTitle.value || !newTitleLocalized.value.trim()) return;
 
-  router.post(`/api/titles/${selectedExistingTitle.value.id}/localized-names`, {
-    localizedName: newTitleLocalized.value.trim(),
-    langId: newTitleLangId.value,
-  }, {
-    preserveScroll: true,
-    onSuccess: () => {
-      closeNewTitleModal();
+  router.post(
+    `/api/titles/${selectedExistingTitle.value.id}/localized-names`,
+    {
+      localizedName: newTitleLocalized.value.trim(),
+      langId: newTitleLangId.value,
     },
-  });
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        closeNewTitleModal();
+      },
+    }
+  );
 };
 
 const parseImdbData = (data: any): ParsedImdbData | null => {
@@ -252,6 +295,26 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
               Title Database
             </p>
           </div>
+        </div>
+
+        <!-- Test URL Redirect -->
+        <div class="flex items-center gap-2">
+          <label for="test-url" class="text-sm font-medium text-[#B0B0B0]"
+            >Test URL Redirect</label
+          >
+          <input
+            id="test-url"
+            v-model="testUrl"
+            type="text"
+            placeholder="Enter URL to test proxy"
+            class="px-3 py-2 bg-[#2A2A2A] border border-[#404040] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+          />
+          <button
+            @click="testProxy"
+            class="px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg transition-all active:scale-95"
+          >
+            Enviar
+          </button>
         </div>
 
         <div class="flex items-center gap-4">
@@ -622,12 +685,20 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
     </main>
 
     <!-- Add Localized Name Modal -->
-    <div v-if="showAddModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click="closeAddModal">
-      <div class="bg-sand-2 rounded-2xl border border-sand-5 shadow-xl max-w-md w-full mx-4" @click.stop>
+    <div
+      v-if="showAddModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      @click="closeAddModal"
+    >
+      <div
+        class="bg-sand-2 rounded-2xl border border-sand-5 shadow-xl max-w-md w-full mx-4"
+        @click.stop
+      >
         <div class="p-6">
           <h3 class="text-lg font-bold text-sand-12 mb-4">Add Localized Name</h3>
           <p class="text-sm text-sand-11 mb-4">
-            Add a localized name for: <strong>{{ selectedTitleForAdd?.originalTitle }}</strong>
+            Add a localized name for:
+            <strong>{{ selectedTitleForAdd?.originalTitle }}</strong>
           </p>
 
           <div class="space-y-4">
@@ -646,7 +717,9 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-sand-12 mb-2">Localized Name</label>
+              <label class="block text-sm font-medium text-sand-12 mb-2"
+                >Localized Name</label
+              >
               <input
                 v-model="newLocalizedName"
                 type="text"
@@ -677,8 +750,14 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
     </div>
 
     <!-- Add Translation Modal -->
-    <div v-if="showNewTitleModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click="closeNewTitleModal">
-      <div class="bg-sand-2 rounded-2xl border border-sand-5 shadow-xl max-w-md w-full mx-4" @click.stop>
+    <div
+      v-if="showNewTitleModal"
+      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    >
+      <div
+        class="bg-sand-2 rounded-2xl border border-sand-5 shadow-xl max-w-md w-full mx-4"
+        @click.stop
+      >
         <div class="p-6">
           <h3 class="text-lg font-bold text-sand-12 mb-4">Add Translation</h3>
           <p class="text-sm text-sand-11 mb-4">
@@ -688,7 +767,9 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
           <div class="space-y-4">
             <!-- Title Search -->
             <div>
-              <label class="block text-sm font-medium text-sand-12 mb-2">Search Title</label>
+              <label class="block text-sm font-medium text-sand-12 mb-2"
+                >Search Title</label
+              >
               <input
                 v-model="titleSearchQuery"
                 type="text"
@@ -699,7 +780,22 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
             </div>
 
             <!-- Search Results -->
-            <div v-if="searchResults.length > 0" class="max-h-40 overflow-y-auto border border-sand-5 rounded-xl bg-sand-3">
+            <div
+              v-if="isSearchingTitles"
+              class="max-h-40 border border-sand-5 rounded-xl bg-sand-3 flex items-center justify-center p-4"
+            >
+              <div class="text-sm text-sand-10">Searching...</div>
+            </div>
+            <div
+              v-else-if="titleSearchQuery.trim() && searchResults.length === 0"
+              class="max-h-40 border border-sand-5 rounded-xl bg-sand-3 flex items-center justify-center p-4"
+            >
+              <div class="text-sm text-sand-10">Empty results</div>
+            </div>
+            <div
+              v-else-if="searchResults.length > 0"
+              class="max-h-40 overflow-y-auto border border-sand-5 rounded-xl bg-sand-3"
+            >
               <div
                 v-for="title in searchResults"
                 :key="title.id"
@@ -707,15 +803,24 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
                 @click="selectTitle(title)"
               >
                 <div class="font-medium text-sand-12">{{ title.originalTitle }}</div>
-                <div class="text-xs text-sand-10">{{ title.imdbId }} • {{ title.mediaType }}</div>
+                <div class="text-xs text-sand-10">
+                  {{ title.imdbId }} • {{ title.mediaType }}
+                </div>
               </div>
             </div>
 
             <!-- Selected Title Display -->
-            <div v-if="selectedExistingTitle" class="p-3 bg-primary/10 border border-primary/30 rounded-xl">
+            <div
+              v-if="selectedExistingTitle"
+              class="p-3 bg-primary/10 border border-primary/30 rounded-xl"
+            >
               <div class="text-sm font-medium text-sand-12">Selected Title:</div>
-              <div class="font-bold text-primary">{{ selectedExistingTitle.originalTitle }}</div>
-              <div class="text-xs text-sand-10">{{ selectedExistingTitle.imdbId }} • {{ selectedExistingTitle.mediaType }}</div>
+              <div class="font-bold text-primary">
+                {{ selectedExistingTitle.originalTitle }}
+              </div>
+              <div class="text-xs text-sand-10">
+                {{ selectedExistingTitle.imdbId }} • {{ selectedExistingTitle.mediaType }}
+              </div>
             </div>
 
             <!-- Language Selection -->
@@ -735,7 +840,9 @@ const parseImdbData = (data: any): ParsedImdbData | null => {
 
             <!-- Localized Name -->
             <div>
-              <label class="block text-sm font-medium text-sand-12 mb-2">Localized Name</label>
+              <label class="block text-sm font-medium text-sand-12 mb-2"
+                >Localized Name</label
+              >
               <input
                 v-model="newTitleLocalized"
                 type="text"

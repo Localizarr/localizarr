@@ -28,6 +28,8 @@ router.get('/__debug/publish-queue', async ({ request, response }) => {
 })
 
 // API routes for titles management
+router.post('/test-proxy', [ProxyController, 'testProxy'])
+
 router
   .group(() => {
     router.get('/titles', '#controllers/titles_controller.index')
