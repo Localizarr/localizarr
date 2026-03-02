@@ -7,6 +7,7 @@
     "src"
   ],
   "devDependencies": {
+    "c8": "^11.0.0",
     "turbo": "^2.0.0"
   },
   "scripts": {
@@ -15,6 +16,12 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "format": "turbo run format",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "test:unit": "japa src/tests/unit --reporter spec",
+    "test:functional": "japa src/tests/functional --reporter spec",
+    "test:cover:unit": "c8 npm run test:unit",
+    "test:cover:functional": "c8 npm run test:functional",
+    "test:cover:all": "c8 japa src/tests --reporter spec",
+    "coverage:report": "c8 report --reporter=html"
   }
 }

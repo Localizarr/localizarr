@@ -76,7 +76,7 @@ export default class ProxyController {
     }
 
     // Build target URL using UrlParserService
-    const url = await UrlParserService.buildProxyUrl(fullHost, path, query)
+    const url = await UrlParserService.buildProxyUrl(domain, path, query)
 
     // ========== PROXY REQUEST DEBUGGING ==========
     console.log('='.repeat(60))
@@ -114,7 +114,7 @@ export default class ProxyController {
         request.body(),
         {
           ...headersToForward,
-          host: fullHost, // Override host header for the target domain
+          host: domain, // Override host header for the target domain
         }
       )
 

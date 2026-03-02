@@ -51,7 +51,7 @@ export const application = {
  * Title processing configuration
  */
 export const titleProcessing = {
-  enableOllamaProcessing: env.get('ENABLE_OLLAMA', true),
+  enableOllamaProcessing: env.get('ENABLE_OLLAMA', process.env.NODE_ENV === 'test' ? false : true),
   useQueuedLlm: env.get('USE_QUEUED_LLM', false), // If true, use queues for LLM processing
   enableQueueProcessing: env.get('ENABLE_QUEUE_PROCESSING', true), // If false, queues are not processed
   llmCacheExpiry: env.get('LLM_CACHE_EXPIRY_SECONDS', 3600), // Default 1 hour

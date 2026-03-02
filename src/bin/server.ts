@@ -51,11 +51,13 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
       // Run IMDb titles seeder if needed
       console.log('Checking IMDb titles data...')
       try {
-        execSync('node ace import:titles', {
-          stdio: 'inherit',
-          cwd: APP_ROOT.pathname,
-        })
-        console.log('IMDb titles data check completed')
+        if (!app.inTest) {
+          execSync('node ace import:titles', {
+            stdio: 'inherit',
+            cwd: APP_ROOT.pathname,
+          })
+          console.log('IMDb titles data check completed')
+        }
       } catch (error) {
         console.error('Failed to check IMDb titles data:', error)
         // Don't throw error here - titles are not critical for server startup

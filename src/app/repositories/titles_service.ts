@@ -1,9 +1,24 @@
 import Title from '#models/title'
 import LocalizedName from '#models/localized_name'
 import { OllamaService } from '#services/ollama_service'
+import * as changeCase from 'change-case'
 
 export class TitlesService {
   private static titleReplacements = new Map<string, string>()
+
+  /**
+   * Normalize a string for matching: remove diacritics, lowercase, standardize separators to spaces
+   */
+  private static normalize(str: string): string {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[-\.\s]+/g, ' ').trim()
+  }
+
+  /**
+   * Set title replacements for testing
+   */
+  static setTitleReplacements(replacements: Map<string, string>): void {
+    this.titleReplacements = replacements
+  }
 
   /**
    * Replace localized text from response
@@ -51,37 +66,43 @@ export class TitlesService {
    * Maps localized titles back to original titles
    */
   private static async ensureReplacementsLoaded(targetLangId: string): Promise<void> {
-    if (this.titleReplacements.size === 0) {
-      console.log(
-        `[TitlesService] Loading title replacements from database for lang: ${targetLangId}`
-      )
+    // Always reload to ensure up-to-date data, especially in test environments
+    console.log(
+      `[TitlesService] Loading title replacements from database for lang: ${targetLangId}`
+    )
 
-      try {
-        // Get all localized names for the target language
-        const localizedNames = await LocalizedName.query()
-          .where('langId', targetLangId)
-          .preload('title')
+    try {
+      // Get all localized names for the target language
+      const localizedNames = await LocalizedName.query()
+        .where('langId', targetLangId)
+        .preload('title')
 
-        this.titleReplacements.clear()
+      this.titleReplacements.clear()
 
-        for (const localizedName of localizedNames) {
-          const title = localizedName.title
+      for (const localizedName of localizedNames) {
+        const title = localizedName.title
 
-          // Add mapping from localized name to original title (reverse replacement)
-          this.titleReplacements.set(
-            localizedName.localizedName,
-            title.originalTitle
-          )
+        // Add mapping from localized name to original title (reverse replacement)
+        // Generate variants for different writing styles
+        const variants = [
+          localizedName.localizedName,
+          this.normalize(localizedName.localizedName),
+          changeCase.kebabCase(localizedName.localizedName), // kebab-case
+          changeCase.dotCase(localizedName.localizedName) // dot-case
+        ]
+
+        for (const variant of variants) {
+          this.titleReplacements.set(variant, title.originalTitle)
         }
-
-        console.log(`[TitlesService] Loaded ${this.titleReplacements.size} title replacements`)
-      } catch (error) {
-        console.log(
-          `[TitlesService] Database not available or not initialized (this is normal in test environments):`,
-          error.message
-        )
-        this.titleReplacements.clear()
       }
+
+      console.log(`[TitlesService] Loaded ${this.titleReplacements.size} title replacements`)
+    } catch (error) {
+      console.log(
+        `[TitlesService] Database not available or not initialized (this is normal in test environments):`,
+        error.message
+      )
+      this.titleReplacements.clear()
     }
   }
 
@@ -282,26 +303,41 @@ export class TitlesService {
   }
 
   /**
+   * Replace localized titles in a string using variants and normalized matching
+   */
+  private static replaceInString(str: string): string {
+    if (!str || typeof str !== 'string') return str
+
+    let result = str
+
+    // Sort replacements by length descending to replace longer matches first
+    const sortedReplacements = Array.from(this.titleReplacements.entries()).sort((a, b) => b[0].length - a[0].length)
+
+    for (const [key, replacement] of sortedReplacements) {
+      const keyLength = key.length
+      for (let i = 0; i <= result.length - keyLength; i++) {
+        const substring = result.substring(i, i + keyLength)
+        if (this.normalize(substring) === this.normalize(key)) {
+          result = result.substring(0, i) + replacement + result.substring(i + keyLength)
+          i += replacement.length - 1 // adjust index
+        }
+      }
+    }
+
+    return result
+  }
+
+  /**
    * Process a single item for title replacement
    */
   private static processItemForReplacement(item: any, titleField: string): any {
     if (item[titleField] && typeof item[titleField] === 'string') {
       const originalTitle = item[titleField]
-      let modifiedTitle = originalTitle
-
-      // Apply all title replacements
-      for (const [original, replacement] of this.titleReplacements) {
-        if (modifiedTitle.includes(original)) {
-          modifiedTitle = modifiedTitle.replace(
-            new RegExp(this.escapeRegExp(original), 'gi'),
-            replacement
-          )
-          console.log(`[TitlesService] "${original}" -> "${replacement}" in "${originalTitle}"`)
-        }
-      }
+      const modifiedTitle = this.replaceInString(originalTitle)
 
       if (originalTitle !== modifiedTitle) {
         item[titleField] = modifiedTitle
+        console.log(`[TitlesService] Replaced in "${originalTitle}" -> "${modifiedTitle}"`)
       }
     }
 
@@ -322,18 +358,10 @@ export class TitlesService {
         const value = obj[key]
 
         if (typeof value === 'string') {
-          let modifiedValue = value
-          for (const [original, replacement] of this.titleReplacements) {
-            if (modifiedValue.includes(original)) {
-              modifiedValue = modifiedValue.replace(
-                new RegExp(this.escapeRegExp(original), 'gi'),
-                replacement
-              )
-              console.log(`[TitlesService] "${original}" -> "${replacement}" in nested field`)
-            }
-          }
+          const modifiedValue = this.replaceInString(value)
           if (value !== modifiedValue) {
             obj[key] = modifiedValue
+            console.log(`[TitlesService] Replaced in nested field: "${value}" -> "${modifiedValue}"`)
           }
         } else if (typeof value === 'object') {
           this.processNestedStrings(value)
@@ -343,8 +371,4 @@ export class TitlesService {
   }
 
   // Private helper methods
-
-  private static escapeRegExp(string: string): string {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  }
 }

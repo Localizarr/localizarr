@@ -9,7 +9,7 @@ import db from '@adonisjs/lucid/services/db'
 import Title from '#models/title'
 
 export default class extends BaseSeeder {
-  static environment = ['development', 'test', 'production']
+  static environment = ['development', 'production']
   private url = 'https://datasets.imdbws.com/title.basics.tsv.gz'
   private filePath = path.join(process.cwd(), 'tmp', 'title.basics.tsv.gz')
   private batchSize = 500 // Tamanho otimizado para SQLite
@@ -40,10 +40,29 @@ export default class extends BaseSeeder {
   }
 
   private async downloadFileIfNotExists() {
+    const refreshIntervalDays = Number.parseInt(
+      process.env.TITLE_DB_REFRESH_INTERVAL_DAYS || '7',
+      10
+    )
+
     if (fs.existsSync(this.filePath)) {
-      console.log('📁 Arquivo já existe, pulando download...')
-      console.log(`📂 Localização: ${this.filePath}`)
-      return
+      const stats = fs.statSync(this.filePath)
+      const fileAgeInDays = (Date.now() - stats.mtime.getTime()) / (1000 * 60 * 60 * 24)
+
+      if (fileAgeInDays <= refreshIntervalDays) {
+        console.log('📁 Arquivo já existe e está atualizado, pulando download...')
+        console.log(`📂 Localização: ${this.filePath}`)
+        console.log(`📅 Idade do arquivo: ${fileAgeInDays.toFixed(2)} dias`)
+        return
+      } else {
+        console.log('📁 Arquivo existe mas está desatualizado, baixando novamente...')
+        console.log(`📂 Localização: ${this.filePath}`)
+        console.log(
+          `📅 Idade do arquivo: ${fileAgeInDays.toFixed(2)} dias (limite: ${refreshIntervalDays} dias)`
+        )
+      }
+    } else {
+      console.log('📁 Arquivo não existe, iniciando download...')
     }
 
     console.log('📥 Baixando arquivo do IMDb...')

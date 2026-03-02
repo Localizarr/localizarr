@@ -21,11 +21,60 @@ export interface OllamaTitleInfo {
   imdbMetadata?: ImdbMetadata
 }
 
+/**
+ * Minimal interface that tests can implement to stub Ollama chat calls.
+ * Matches the subset of `Ollama` used by `OllamaService`.
+ */
+export interface OllamaTestAdapter {
+  chat(request: {
+    model: string
+    messages: Array<{ role: string; content: string }>
+    format?: string
+  }): Promise<{ message: { content: string } }>
+}
+
 export class OllamaService {
   private static readonly CACHE_EXPIRY_HOURS = 24 // 24 hours cache expiry
   private static readonly ollama = new Ollama({
     host: ollamaConfig.url,
   })
+
+  // ─── Test-only dependency injection ────────────────────────────────────────
+  // These fields are `undefined` in production and only set during tests via
+  // `OllamaService.setTestAdapters(...)`.  All internal methods go through the
+  // private getters below so the real SDK is used by default.
+  private static _testOllamaAdapter: OllamaTestAdapter | null = null
+  private static _testFetch: typeof fetch | null = null
+
+  /**
+   * Inject mock adapters for automated tests.
+   * Call `resetTestAdapters()` during teardown to restore production behaviour.
+   *
+   * Only works when called from test code — in production this is a safe no-op.
+   */
+  static setTestAdapters(adapters: {
+    ollama?: OllamaTestAdapter
+    fetch?: typeof fetch
+  }): void {
+    this._testOllamaAdapter = adapters.ollama ?? null
+    this._testFetch = adapters.fetch ?? null
+  }
+
+  /** Remove previously injected test adapters, reverting to production behaviour. */
+  static resetTestAdapters(): void {
+    this._testOllamaAdapter = null
+    this._testFetch = null
+  }
+
+  /** Returns the real or stubbed `ollama.chat` callable. */
+  private static get ollamaAdapter(): Pick<Ollama, 'chat'> {
+    return (this._testOllamaAdapter as any) ?? this.ollama
+  }
+
+  /** Returns the real or stubbed `fetch`. */
+  private static get fetchAdapter(): typeof fetch {
+    return (this._testFetch as any) ?? fetch
+  }
 
   /**
    * Check connection to Ollama and return available models.
@@ -37,7 +86,7 @@ export class OllamaService {
 
       // Ollama exposes models at /models (returns an array of model objects or names)
       const modelsUrl = new URL('/api/tags', ollamaConfig.url).toString()
-      const res = await fetch(modelsUrl, { method: 'GET' })
+      const res = await this.fetchAdapter(modelsUrl, { method: 'GET' })
 
       if (!res.ok) {
         console.error(
@@ -126,7 +175,7 @@ INSTRUCTIONS:
 
 Return ONLY: "ORIGINAL" or "TRANSLATION"`
 
-      const response = await this.ollama.chat({
+      const response = await this.ollamaAdapter.chat({
         model: ollamaConfig.model,
         messages: [{ role: 'user', content: prompt }],
       })
@@ -285,7 +334,7 @@ Do NOT guess or make up titles. Return null for unknown IDs.`
         } catch (e) { }
       }
 
-      const response = await this.ollama.chat({
+      const response = await this.ollamaAdapter.chat({
         model: ollamaConfig.model,
         messages: [{ role: 'user', content: prompt }],
         format: 'json',
@@ -700,7 +749,7 @@ IMPORTANT:
         console.log('[OllamaService] No execution log provided for prompt logging')
       }
 
-      const response = await this.ollama.chat({
+      const response = await this.ollamaAdapter.chat({
         model: ollamaConfig.model,
         messages: [{ role: 'user', content: prompt }],
         format: 'json',
