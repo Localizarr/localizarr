@@ -4,16 +4,18 @@
   "private": true,
   "packageManager": "npm@10.9.3",
   "workspaces": [
-    "src"
+    "backend",
+    "frontend-svelte"
   ],
   "devDependencies": {
     "c8": "^11.0.0",
-    "turbo": "^2.0.0"
+    "japa": "^4.0.0",
+    "turbo": "^2.8.14"
   },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "test": "turbo run test",
+    "test": "turbo run test --filter=frontend-svelte...",
     "lint": "turbo run lint",
     "format": "turbo run format",
     "typecheck": "turbo run typecheck",
@@ -23,5 +25,9 @@
     "test:cover:functional": "c8 npm run test:functional",
     "test:cover:all": "c8 japa src/tests --reporter spec",
     "coverage:report": "c8 report --reporter=html"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
   }
 }

@@ -1,0 +1,15 @@
+{
+  "extends": "@adonisjs/tsconfig/tsconfig.app.json",
+  "compilerOptions": {
+    "rootDir": "./",
+    "outDir": "./build"
+  },
+  "exclude": [
+    "node_modules",
+    "build",
+    "commands/force_import_titles.ts",
+    "commands/import_titles.ts",
+    "tests",
+    "tests/**/*"
+  ]
+}

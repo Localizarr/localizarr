@@ -5,7 +5,7 @@ This document contains technical information for developers contributing to Loca
 ## 🛠 Tech Stack
 
 - **Backend**: Node.js 18+, TypeScript, AdonisJS
-- **Frontend**: Vue.js 3, Inertia.js
+- **Frontend**: Svelte 4, SvelteKit
 - **Database**: SQLite with Lucid ORM
 - **AI**: Ollama integration
 - **Testing**: Japa test runner
@@ -29,41 +29,38 @@ cd localizarr
 # Install dependencies
 npm install
 
-# Copy environment file
-cp .env.example .env
-
-# Generate app key
-node ace generate:key
+# Generate app key (in backend directory)
+cd backend && node ace generate:key
 
 # Run migrations
-npm run migr
+cd backend && npm run migr
 
-# Start development server
+# Start development server (from root)
 npm run dev
 ```
 
 ### Available Scripts
 
 ```bash
-# Development
-npm run dev          # Start development server with hot reload
-npm run build        # Build for production
-npm run start        # Start production server
+# Development (Monorepo)
+npm run dev          # Start all services
+npm run build        # Build all packages
+
+# Backend
+cd backend && npm run dev          # Start development server with hot reload
+cd backend && npm run build        # Build for production
 
 # Database
-npm run migr         # Run migrations
-npm run migr:rollback # Rollback migrations
-npm run seed         # Run seeders
+cd backend && npm run migr         # Run migrations
+cd backend && npm run seed         # Run seeders
 
 # Testing
-npm test             # Run all tests
-npm run test:watch   # Run tests in watch mode
-npm run test:coverage # Run tests with coverage
+cd backend && npm run test          # Unit tests
+cd backend && npm run test:functional  # Functional tests
 
-# Utilities
-npm run reset:db     # Reset database (rollback + migrate + seed)
-npm run lint         # Run ESLint
-npm run format       # Format code with Prettier
+# Frontend
+cd frontend-svelte && npm run dev   # Start dev server
+cd frontend-svelte && npm run test  # Run tests
 ```
 
 ## 🎬 IMDb Titles Import
@@ -124,44 +121,35 @@ node ace import:titles:force
 
 ```
 localizarr/
-├── app/                    # Application code
-│   ├── controllers/        # API controllers
-│   │   ├── proxy_controller.ts    # Main proxy logic
-│   │   ├── titles_controller.ts   # Title management
-│   │   └── logs_controller.ts     # Execution logs
-│   ├── services/           # Business logic services
-│   │   ├── ollama_service.ts      # AI/LLM integration
-│   │   ├── queue_service.ts       # Queue management
-│   │   └── proxy_request_service.ts # HTTP proxy logic
-│   ├── models/             # Database models
-│   │   ├── title.ts               # Title entity
-│   │   ├── localized_name.ts      # Translation mappings
-│   │   ├── execution_log.ts       # Request logs
-│   │   └── llm_cache.ts           # AI response cache
-│   ├── repositories/       # Data access layer
-│   │   └── titles_service.ts      # Title processing logic
-│   └── middleware/         # HTTP middleware
-├── config/                 # Configuration files
-│   ├── app.ts              # Main app config
-│   ├── database.ts         # Database config
-│   └── session.ts          # Session config
-├── database/               # Database files
-│   ├── migrations/         # Schema migrations
-│   └── seeders/            # Data seeders
-├── inertia/                # Frontend (Vue.js + Inertia)
-│   ├── pages/              # Vue components/pages
-│   └── css/                # Styles
-├── queues/                 # Filesystem queue storage
-├── start/                  # Application bootstrap
-│   ├── routes.ts           # API routes
-│   ├── env.ts              # Environment validation
-│   └── kernel.ts           # HTTP kernel
-├── tests/                  # Test suites
-│   ├── functional/         # API integration tests
-│   ├── llm-integration/    # AI integration tests
-│   └── bootstrap.ts        # Test setup
-├── tmp/                    # Temporary files
-└── resources/              # Static assets
+├── backend/                    # AdonisJS API server
+│   ├── app/
+│   │   ├── controllers/        # API controllers
+│   │   │   ├── proxy_controller.ts
+│   │   │   ├── titles_controller.ts
+│   │   │   └── logs_controller.ts
+│   │   ├── services/          # Business logic services
+│   │   │   ├── ollama_service.ts
+│   │   │   ├── queue_service.ts
+│   │   │   ├── proxy_request_service.ts
+│   │   │   └── title_matching_service.ts
+│   │   ├── models/            # Database models
+│   │   ├── middleware/       # HTTP middleware
+│   │   └── repositories/     # Data access layer
+│   ├── config/               # Configuration files
+│   ├── database/
+│   │   ├── migrations/       # Schema migrations
+│   │   └── seeders/          # Data seeders
+│   ├── start/
+│   │   ├── routes.ts         # API routes
+│   │   └── kernel.ts        # HTTP kernel
+│   └── tests/
+│       ├── unit/             # Unit tests
+│       └── functional/       # Integration tests
+├── frontend-svelte/          # SvelteKit frontend
+│   ├── src/
+│   │   └── routes/          # SvelteKit routes
+│   └── tests/                # Vitest tests
+└── package.json              # Monorepo root
 ```
 
 ## 🔧 Configuration
@@ -188,21 +176,22 @@ The application uses SQLite with the following main tables:
 
 ### Test Structure
 
-- **Unit Tests**: Individual functions and services
-- **Functional Tests**: API endpoints and integrations
-- **LLM Integration Tests**: AI processing validation
+- **Backend**: Japa test runner
+  - Unit: `tests/unit/`
+  - Functional: `tests/functional/`
+- **Frontend**: Vitest
+  - Tests in `tests/` directory
 
 ### Running Tests
 
 ```bash
-# All tests
-npm test
+# Backend tests
+cd backend && npm run test              # Unit
+cd backend && npm run test:functional   # Functional
+cd backend && npm run test:all         # All
 
-# With coverage
-npm run test:coverage
-
-# Specific test file
-npm test tests/functional/proxy_controller.spec.ts
+# Frontend tests
+cd frontend-svelte && npm run test
 ```
 
 ### Test Environment
@@ -250,19 +239,20 @@ We welcome contributions! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for d
 
 - **Ollama connection**: Ensure Ollama is running and accessible
 - **Queue processing**: Check `ENABLE_QUEUE_PROCESSING` setting
-- **Database issues**: Run `npm run reset:db`
+- **Database issues**: Run `cd backend && npm run reset:db`
 
 ## 📚 API Documentation
 
 ### Main Endpoints
 
-- `GET /`: Dashboard
+- `GET /`: Dashboard (SvelteKit frontend)
 - `POST /api/proxy`: Proxy requests (internal)
 - `GET /api/titles`: List titles
 - `GET /logs`: View execution logs
 
 ### Title Management
 
+- `GET /api/titles/:id`: Get title details
 - `GET /api/titles/:id/localized-names`: Get translations
 - `DELETE /api/titles/clear-all`: Clear all translations
 
@@ -271,7 +261,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for d
 - API key authentication for sensitive operations
 - Input validation on all endpoints
 - SQL injection protection via Lucid ORM
-- XSS protection via Vue.js
+- XSS protection via Svelte
 
 ## 📈 Performance
 
@@ -289,9 +279,10 @@ We welcome contributions! Please see [CONTRIBUTING.md](../CONTRIBUTING.md) for d
 version: '3.8'
 services:
   localizarr:
-    build: .
+    image: vinicioslc/localizarr:latest
     ports:
       - "5005:5005"
+      - "5006:5006"
     environment:
       - NODE_ENV=production
 ```
@@ -299,8 +290,9 @@ services:
 ### Manual
 
 ```bash
+# Build and start
 npm run build
-npm run start
+cd backend && npm run start
 ```
 
 ## 📞 Support

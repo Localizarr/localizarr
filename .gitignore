@@ -166,3 +166,7 @@ src/queues/*.finished
 .turbo/**
 src/data/*
 !src/data/.gitkeep
+backend/data/*
+!backend/data/.gitkeep
+*.sqlite3
+*.sqlite3-journal
