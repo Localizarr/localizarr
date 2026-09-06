@@ -1,36 +1,29 @@
-# Dockerfile multi-stage para servir Next.js (frontend) e AdonisJS (backend) juntos
-
-# Stage 1: Build do frontend Next.js
+# Multi-stage: frontend-svelte + backend AdonisJS
 FROM node:20 AS frontend-build
-WORKDIR /app/frontend-next
-COPY frontend-next/package*.json ./
-RUN npm install
-COPY frontend-next/ ./
+WORKDIR /app/frontend-svelte
+COPY frontend-svelte/package*.json ./
+RUN npm ci
+COPY frontend-svelte/ ./
 RUN npm run build
 
-# Stage 2: Build do backend AdonisJS
 FROM node:20 AS backend-build
 WORKDIR /app
-COPY package*.json ./
-COPY src/package*.json ./src/
-RUN npm install
-COPY . .
-RUN cd src && npm install && npm run build:ts
+COPY package.json package-lock.json ./
+COPY backend/package*.json ./backend/
+RUN npm ci --prefix backend
+COPY backend/ ./backend/
+RUN npm run build --prefix backend
 
-# Stage 3: Imagem final para produção
 FROM node:20-slim
 WORKDIR /app
-
-# Copia backend
-COPY --from=backend-build /app /app
-
-# Copia build do frontend para dentro do backend
-COPY --from=frontend-build /app/frontend-next/.next /app/frontend-next/.next
-COPY --from=frontend-build /app/frontend-next/public /app/frontend-next/public
-
+RUN apt-get update && apt-get install -y python3 make g++ curl && rm -rf /var/lib/apt/lists/*
+COPY --from=backend-build /app/backend /app/backend
+COPY --from=frontend-build /app/public/svelte /app/public/svelte
+WORKDIR /app/backend
+RUN npm ci --omit=dev
 ENV NODE_ENV=production
-ENV PORT=3333
-
-EXPOSE 3333
-
-CMD ["node", "src/bin/server.js"]
+ENV PORT=5005
+ENV PROXY_PORT=5006
+EXPOSE 5005 5006
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=40s CMD curl -f http://localhost:5005/ || exit 1
+CMD ["node", "build/bin/server.js"]
